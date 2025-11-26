@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -36,6 +37,10 @@ fun PrinterScreen(
         }
     }
     
+    // Ekran boyutunu tespit et
+    val configuration = LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
+    
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -49,15 +54,50 @@ fun PrinterScreen(
         },
         modifier = modifier
     ) { paddingValues ->
+        if (isTablet) {
+            // Tablet layout - İki sütunlu
+            TabletLayout(
+                uiState = uiState,
+                viewModel = viewModel,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            )
+        } else {
+            // Telefon layout - Tek sütunlu
+            PhoneLayout(
+                uiState = uiState,
+                viewModel = viewModel,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            )
+        }
+    }
+}
+
+/**
+ * Tablet için iki sütunlu layout
+ */
+@Composable
+fun TabletLayout(
+    uiState: PrinterUiState,
+    viewModel: PrinterViewModel,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        // Sol sütun - Ayarlar ve metin
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .weight(1f)
+                .fillMaxHeight(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Bağlantı ayarları kartı
             ConnectionSettingsCard(
                 ipAddress = uiState.ipAddress,
                 port = uiState.port,
@@ -66,14 +106,22 @@ fun PrinterScreen(
                 isEnabled = !uiState.isLoading
             )
             
-            // Yazdırma metni kartı
             PrintTextCard(
                 printText = uiState.printText,
                 onPrintTextChange = viewModel::updatePrintText,
                 isEnabled = !uiState.isLoading
             )
             
-            // Yazdırma butonları kartı
+            InfoCard()
+        }
+        
+        // Sağ sütun - Butonlar ve durum
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             PrintButtonsCard(
                 onTestPrint = viewModel::printTest,
                 onPrintCustomText = viewModel::printCustomText,
@@ -82,14 +130,55 @@ fun PrinterScreen(
                 isLoading = uiState.isLoading
             )
             
-            // Yükleme göstergesi
             if (uiState.isLoading) {
                 LoadingIndicator()
             }
-            
-            // Bilgi kartı
-            InfoCard()
         }
+    }
+}
+
+/**
+ * Telefon için tek sütunlu layout
+ */
+@Composable
+fun PhoneLayout(
+    uiState: PrinterUiState,
+    viewModel: PrinterViewModel,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ConnectionSettingsCard(
+            ipAddress = uiState.ipAddress,
+            port = uiState.port,
+            onIpAddressChange = viewModel::updateIpAddress,
+            onPortChange = viewModel::updatePort,
+            isEnabled = !uiState.isLoading
+        )
+        
+        PrintTextCard(
+            printText = uiState.printText,
+            onPrintTextChange = viewModel::updatePrintText,
+            isEnabled = !uiState.isLoading
+        )
+        
+        PrintButtonsCard(
+            onTestPrint = viewModel::printTest,
+            onPrintCustomText = viewModel::printCustomText,
+            onPrintSampleReceipt = viewModel::printSampleReceipt,
+            onPrintDemo = viewModel::printDemo,
+            isLoading = uiState.isLoading
+        )
+        
+        if (uiState.isLoading) {
+            LoadingIndicator()
+        }
+        
+        InfoCard()
     }
 }
 

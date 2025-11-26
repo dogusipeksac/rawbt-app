@@ -10,6 +10,7 @@ WiFi üzerinden termal POS yazıcılara ESC/POS komutları gönderebilen Android
 - ✅ Jetpack Compose UI
 - ✅ Kotlin Coroutines ile asenkron işlemler
 - ✅ Türkçe karakter desteği
+- ✅ **Tablet desteği** - Responsive layout (telefon ve tablet)
 - ✅ Test yazdırma
 - ✅ Özel metin yazdırma
 - ✅ Örnek fiş yazdırma
