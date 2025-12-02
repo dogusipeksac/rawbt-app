@@ -1,0 +1,17 @@
+#!/bin/bash
+
+echo "==================================="
+echo "RawBT App Debug Logs"
+echo "==================================="
+echo ""
+echo "Logları izlemek için aşağıdaki komutu çalıştırın:"
+echo ""
+echo "adb logcat | grep -E 'PrinterSelectionScreen|MainActivity|PrinterViewModel|WebViewActivity'"
+echo ""
+echo "==================================="
+echo ""
+echo "Veya sadece önemli loglar için:"
+echo ""
+echo "adb logcat | grep -E 'Yazdır butonuna|onPrintReady|handlePrintWithPrinter|Print data received'"
+echo ""
+echo "==================================="

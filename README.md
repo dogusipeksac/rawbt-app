@@ -1,20 +1,59 @@
-# WiFi Termal POS Yazıcı Uygulaması
+# 🖨️ RawBT Termal Yazıcı Uygulaması
 
-WiFi üzerinden termal POS yazıcılara ESC/POS komutları gönderebilen Android uygulaması. Jetpack Compose ve Kotlin ile geliştirilmiştir.
+WiFi üzerinden termal POS yazıcılara ESC/POS komutları gönderebilen ve **web'den deep link ile yazıcı tetikleme** özelliğine sahip Android uygulaması. Jetpack Compose ve Kotlin ile geliştirilmiştir.
 
-## 📋 Özellikler
+## ⭐ Yeni Özellik: Web-to-Mobile Deep Link Entegrasyonu
 
+Web uygulamanızdan Android mobil uygulamasına deep link ile fiş verisi göndererek termal yazıcıda yazdırma yapabilirsiniz!
+
+```javascript
+// Web tarafında (JavaScript)
+POSPrinterBridge.print(receiptData);
+// ↓ Deep Link: rawbtapp://print?data=...
+// ↓ Android uygulaması otomatik açılır
+// ↓ Fiş termal yazıcıda yazdırılır
+```
+
+**📚 Detaylı Dokümantasyon:**
+- [WebView Entegrasyonu (ÖNERİLEN)](WEBVIEW_INTEGRATION.md) - JavaScript Bridge ile direkt yazdırma
+- [Deep Link Entegrasyonu](DEEP_LINK_INTEGRATION.md) - Dış web sitelerinden yazdırma
+- [Kullanım Örnekleri ve Senaryolar](USAGE_EXAMPLES.md)
+
+## 📋 Tüm Özellikler
+
+### Yazıcı Özellikleri
 - ✅ WiFi üzerinden TCP/IP bağlantısı
 - ✅ ESC/POS komut desteği
-- ✅ MVVM mimarisi
-- ✅ Jetpack Compose UI
-- ✅ Kotlin Coroutines ile asenkron işlemler
-- ✅ Türkçe karakter desteği
-- ✅ **Tablet desteği** - Responsive layout (telefon ve tablet)
+- ✅ Türkçe karakter desteği (Windows-1254)
 - ✅ Test yazdırma
 - ✅ Özel metin yazdırma
 - ✅ Örnek fiş yazdırma
 - ✅ ESC/POS demo yazdırma
+
+### Web Entegrasyonu (YENİ!)
+
+**Yöntem 1: Deep Link (Dış Web Sitelerinden)**
+- ✅ **Deep Link Desteği** - `rawbtapp://print`
+- ✅ **Web-to-Mobile Bridge** - JavaScript kütüphanesi
+- ✅ **JSON Veri Transferi** - URL-encoded format
+- ✅ **Otomatik Fallback** - Uygulama yoksa web print
+- ✅ **Retry Mekanizması** - 3 deneme ile hata toleransı
+
+**Yöntem 2: WebView (Uygulama İçi) - ÖNERİLEN! 🌟**
+- ✅ **JavaScript Bridge** - `window.AndroidPrinter`
+- ✅ **Direkt Yazdırma** - Hiçbir deep link gerekmez
+- ✅ **Console Erişimi** - Chrome DevTools ile debug
+- ✅ **Gerçek Zamanlı Callback** - Başarı/hata bildirimi
+- ✅ **Yazıcı Kontrolü** - Durum, ayarlar, test
+- ✅ **Kolay Entegrasyon** - Tek satır JavaScript
+
+### Uygulama Özellikleri
+- ✅ MVVM mimarisi
+- ✅ Jetpack Compose UI
+- ✅ Kotlin Coroutines ile asenkron işlemler
+- ✅ **Tablet desteği** - Responsive layout
+- ✅ Material 3 Design
+- ✅ Dark/Light tema desteği
 
 ## 🏗️ Mimari
 
@@ -63,16 +102,29 @@ Uygulama **MVVM (Model-View-ViewModel)** mimarisi kullanır:
 
 ```
 app/src/main/java/com/example/rawbtapp/
-├── MainActivity.kt                 # Ana aktivite
+├── MainActivity.kt                 # Ana aktivite + Deep link handling
+├── deeplink/
+│   └── DeepLinkHandler.kt         # Deep link parser ve validator
+├── model/
+│   └── ReceiptData.kt             # Fiş veri modelleri
 ├── printer/
 │   ├── EscPosCommands.kt          # ESC/POS komut builder
 │   ├── PrinterClient.kt           # TCP socket bağlantısı
-│   └── PrinterRepository.kt       # Repository katmanı
-└── ui/
-    ├── PrinterViewModel.kt        # ViewModel
-    ├── PrinterScreen.kt           # Compose UI
-    └── theme/
-        └── Theme.kt               # Tema ayarları
+│   └── PrinterRepository.kt       # Repository + Web fiş yazdırma
+├── webview/
+│   └── WebViewActivity.kt         # WebView + JavaScript Bridge
+├── ui/
+│   ├── PrinterViewModel.kt        # ViewModel + Deep link handling
+│   ├── PrinterScreen.kt           # Compose UI
+│   └── theme/
+│       └── Theme.kt               # Tema ayarları
+└── assets/
+    └── pos-web.html               # Dahili web POS sayfası
+
+web/
+├── pos-printer-integration.html   # Örnek POS sayfası (deep link)
+├── pos-printer-bridge.js          # JavaScript bridge kütüphanesi
+└── test-simple.html               # Test sayfası
 ```
 
 ## 🔧 Teknik Detaylar
@@ -188,6 +240,11 @@ Modern Material 3 tasarımı ile kullanıcı arayüzü:
    - Yazıcı ile aynı WiFi ağında olmalı
    - İnternet izni verilmeli
 
+3. **Web Entegrasyonu için (Opsiyonel):**
+   - Mobil tarayıcı (Chrome, Firefox, Safari)
+   - JavaScript aktif olmalı
+   - `pos-printer-bridge.js` dahil edilmeli
+
 ### Adım Adım Kullanım
 
 1. **Yazıcı IP Adresini Öğrenme:**
@@ -211,6 +268,31 @@ Modern Material 3 tasarımı ile kullanıcı arayüzü:
 
 6. **ESC/POS Demo:**
    - "ESC/POS Demo Yazdır" ile tüm özellikleri test edin
+
+### Web'den Yazdırma (Deep Link)
+
+1. **Web Sayfasını Açın:**
+   ```bash
+   cd web
+   python3 -m http.server 8000
+   # Tarayıcıda: http://localhost:8000/test-simple.html
+   ```
+
+2. **Mobil Cihazda Test:**
+   - Web sayfasını mobil cihazda açın
+   - "Test Fiş Yazdır" butonuna basın
+   - Android uygulaması otomatik açılacak
+   - Fiş yazıcıda yazdırılacak
+
+3. **Kendi Web Uygulamanıza Entegre Edin:**
+   ```html
+   <script src="pos-printer-bridge.js"></script>
+   <script>
+       POSPrinterBridge.print(receiptData);
+   </script>
+   ```
+
+**Detaylı bilgi için:** [DEEP_LINK_INTEGRATION.md](DEEP_LINK_INTEGRATION.md)
 
 ## 🔐 İzinler
 

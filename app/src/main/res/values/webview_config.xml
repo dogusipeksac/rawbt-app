@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- WebView Konfigürasyonu -->
+    
+    <!-- 
+        WebView URL Ayarı
+        
+        Kullanım:
+        1. Kendi web sitenizin URL'ini buraya yazın
+        2. Uygulamayı derleyin
+        3. "Web POS Aç" butonu otomatik olarak bu URL'i açacak
+        
+        Örnekler:
+        - Yerel test: http://192.168.1.50:8000/pos.html
+        - Canlı site: https://yoursite.com/pos
+        - Dahili sayfa: file:///android_asset/pos-web.html (varsayılan)
+    -->
+    <string name="webview_url">https://stock.7dayshavacilik.com/login</string>
+    
+    <!-- 
+        WebView Başlık
+        WebView'ın üst çubuğunda görünecek başlık
+    -->
+    <string name="webview_title">7 Days Havacılık Stok</string>
+    
+    <!-- 
+        JavaScript Etkin mi?
+        true: JavaScript çalışır (önerilen)
+        false: JavaScript devre dışı
+    -->
+    <bool name="webview_javascript_enabled">true</bool>
+    
+    <!-- 
+        DOM Storage Etkin mi?
+        true: LocalStorage ve SessionStorage kullanılabilir
+        false: Storage devre dışı
+    -->
+    <bool name="webview_dom_storage_enabled">true</bool>
+    
+    <!-- 
+        Cache Modu
+        0: LOAD_DEFAULT (varsayılan)
+        1: LOAD_CACHE_ELSE_NETWORK (önce cache)
+        2: LOAD_NO_CACHE (cache kullanma)
+        3: LOAD_CACHE_ONLY (sadece cache)
+    -->
+    <integer name="webview_cache_mode">0</integer>
+    
+    <!-- 
+        Zoom Kontrolleri
+        true: Kullanıcı zoom yapabilir
+        false: Zoom devre dışı
+    -->
+    <bool name="webview_zoom_enabled">true</bool>
+    
+    <!-- 
+        Dosya Erişimi
+        true: Yerel dosyalara erişim izni
+        false: Dosya erişimi kapalı
+    -->
+    <bool name="webview_file_access_enabled">true</bool>
+    
+    <!-- 
+        Otomatik Yükleme
+        true: Uygulama açılınca otomatik WebView açılır
+        false: Manuel açılır (varsayılan)
+    -->
+    <bool name="webview_auto_open">false</bool>
+    
+    <!-- 
+        Debug Modu
+        true: Chrome DevTools ile debug edilebilir
+        false: Debug kapalı
+    -->
+    <bool name="webview_debug_enabled">true</bool>
+</resources>

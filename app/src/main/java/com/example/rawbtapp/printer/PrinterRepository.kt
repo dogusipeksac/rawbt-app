@@ -1,5 +1,7 @@
 package com.example.rawbtapp.printer
 
+import com.example.rawbtapp.model.ReceiptData
+
 /**
  * Yazıcı işlemleri için Repository katmanı
  * PrinterClient'ı sarmallar ve iş mantığını yönetir
@@ -190,6 +192,160 @@ class PrinterRepository {
         }
         
         return printerClient.print(ipAddress, port, demoData)
+    }
+    
+    /**
+     * Web'den gelen fiş verisini yazdır
+     * Deep link ile gelen ReceiptData'yı ESC/POS formatına çevirir
+     */
+    suspend fun printReceiptFromWeb(
+        ipAddress: String,
+        port: Int,
+        receiptData: ReceiptData
+    ): PrintResult {
+        val printData = buildEscPosCommand {
+            initialize()
+            
+            // Başlık - İşletme bilgileri
+            alignCenter()
+            doubleTextLine(receiptData.merchant.name)
+            textLine(receiptData.merchant.address)
+            textLine(receiptData.merchant.city)
+            textLine("Tel: ${receiptData.merchant.phone}")
+            
+            // Vergi numarası varsa
+            receiptData.merchant.taxNumber?.let {
+                textLine("Vergi No: $it")
+            }
+            newLine()
+            
+            // Fiş bilgileri
+            alignLeft()
+            horizontalLine("=")
+            twoColumnText("Fiş No:", receiptData.receiptId)
+            twoColumnText("Tarih:", receiptData.getFormattedDate())
+            receiptData.paymentMethod?.let {
+                twoColumnText("Ödeme:", it)
+            }
+            horizontalLine("=")
+            newLine()
+            
+            // Ürünler başlığı
+            boldTextLine("ÜRÜNLER")
+            horizontalLine()
+            
+            // Ürün listesi
+            for (item in receiptData.items) {
+                textLine(item.name)
+                val itemDetail = "${item.quantity} x ${receiptData.formatPrice(item.unitPrice)}"
+                val itemTotal = receiptData.formatPrice(item.totalPrice)
+                twoColumnText("  $itemDetail", itemTotal)
+            }
+            
+            horizontalLine()
+            newLine()
+            
+            // Toplam bilgileri
+            alignRight()
+            textLine("Ara Toplam: ${receiptData.formatPrice(receiptData.subtotal)}")
+            textLine("KDV (%${receiptData.taxRate}): ${receiptData.formatPrice(receiptData.tax)}")
+            horizontalLine("=")
+            doubleTextLine("TOPLAM: ${receiptData.formatPrice(receiptData.totalAmount)}")
+            horizontalLine("=")
+            newLine()
+            
+            // Alt bilgi
+            alignCenter()
+            textLine("Bizi tercih ettiğiniz için")
+            textLine("teşekkür ederiz!")
+            newLine()
+            
+            // Kağıt besle ve kes
+            feedPaper(4)
+            cutPaper()
+        }
+        
+        return printerClient.print(ipAddress, port, printData)
+    }
+    
+    /**
+     * Fiş yazdırma (retry mekanizması ile)
+     * Başarısız olursa belirtilen sayıda tekrar dener
+     */
+    suspend fun printReceiptWithRetry(
+        ipAddress: String,
+        port: Int,
+        receiptData: ReceiptData,
+        maxRetries: Int = 3,
+        delayMillis: Long = 1000
+    ): PrintResult {
+        var lastError: String? = null
+        
+        repeat(maxRetries) { attempt ->
+            val result = printReceiptFromWeb(ipAddress, port, receiptData)
+            
+            when (result) {
+                is PrintResult.Success -> return result
+                is PrintResult.Error -> {
+                    lastError = result.message
+                    if (attempt < maxRetries - 1) {
+                        kotlinx.coroutines.delay(delayMillis)
+                    }
+                }
+            }
+        }
+        
+        return PrintResult.Error("Yazdırma başarısız (${maxRetries} deneme): $lastError")
+    }
+    
+    /**
+     * HTML içeriğini direkt yazdır
+     * WebView'dan gelen HTML içeriğini ESC/POS formatına çevirir
+     */
+    suspend fun printHtmlContent(
+        ipAddress: String,
+        port: Int,
+        htmlContent: String,
+        title: String = "POS Fiş"
+    ): PrintResult {
+        val printData = buildEscPosCommand {
+            initialize()
+            
+            // Başlık
+            alignCenter()
+            doubleTextLine(title)
+            newLine()
+            horizontalLine("=")
+            
+            // HTML içeriğini satır satır yazdır
+            alignLeft()
+            val lines = htmlContent.split("\n")
+            for (line in lines) {
+                if (line.isNotBlank()) {
+                    // Uzun satırları böl (32 karakter)
+                    if (line.length > 32) {
+                        val chunks = line.chunked(32)
+                        chunks.forEach { chunk ->
+                            textLine(chunk)
+                        }
+                    } else {
+                        textLine(line)
+                    }
+                }
+            }
+            
+            // Alt bilgi
+            newLine()
+            horizontalLine("=")
+            alignCenter()
+            textLine(getCurrentDateTime())
+            
+            // Kağıt besle ve kes
+            feedPaper(4)
+            cutPaper()
+        }
+        
+        return printerClient.print(ipAddress, port, printData)
     }
     
     private fun getCurrentDateTime(): String {

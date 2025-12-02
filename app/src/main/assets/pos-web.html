@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POS Sistemi - WebView</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 2px solid #e9ecef;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+
+        .item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .item:last-child {
+            border-bottom: none;
+        }
+
+        .item-name {
+            font-weight: 500;
+        }
+
+        .item-price {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .total {
+            font-size: 20px;
+            font-weight: bold;
+            color: #28a745;
+            text-align: right;
+            margin-top: 10px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            display: none;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .settings {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .settings-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #856404;
+        }
+
+        .input-group {
+            margin: 10px 0;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🖨️ POS Sistemi</h1>
+            <p>WebView ile Direkt Yazdırma</p>
+        </div>
+
+        <div class="content">
+            <!-- Yazıcı Durumu -->
+            <div class="settings">
+                <div class="settings-title">📡 Yazıcı Durumu</div>
+                <div id="printerStatus">
+                    <span class="badge badge-warning">Kontrol ediliyor...</span>
+                </div>
+            </div>
+
+            <!-- Yazıcı Ayarları -->
+            <div class="card">
+                <div class="card-title">⚙️ Yazıcı Ayarları</div>
+                <div class="input-group">
+                    <label>IP Adresi:</label>
+                    <input type="text" id="ipAddress" placeholder="192.168.1.100" value="192.168.1.100">
+                </div>
+                <div class="input-group">
+                    <label>Port:</label>
+                    <input type="text" id="port" placeholder="9100" value="9100">
+                </div>
+                <button class="btn btn-secondary" onclick="updateSettings()">
+                    💾 Ayarları Kaydet
+                </button>
+            </div>
+
+            <!-- Örnek Fiş -->
+            <div class="card">
+                <div class="card-title">🧾 Örnek Fiş</div>
+                <div class="item">
+                    <span class="item-name">Ekmek (2 adet)</span>
+                    <span class="item-price">₺10.00</span>
+                </div>
+                <div class="item">
+                    <span class="item-name">Süt (1 adet)</span>
+                    <span class="item-price">₺25.50</span>
+                </div>
+                <div class="item">
+                    <span class="item-name">Peynir (500g)</span>
+                    <span class="item-price">₺85.00</span>
+                </div>
+                <div class="total">TOPLAM: ₺141.89</div>
+            </div>
+
+            <!-- Butonlar -->
+            <button class="btn btn-primary" onclick="printReceipt()">
+                🖨️ Fiş Yazdır
+            </button>
+
+            <button class="btn btn-success" onclick="printTest()">
+                🧪 Test Yazdır
+            </button>
+
+            <button class="btn btn-primary" onclick="print_pos()">
+                📄 HTML POS Yazdır
+            </button>
+
+            <!-- Durum Mesajı -->
+            <div id="statusMessage" class="status"></div>
+
+            <!-- POS Invoice (Gizli - sadece yazdırma için) -->
+            <div id="invoice-POS" style="display: none;">
+                <h2>ABC MARKET</h2>
+                <p>Atatürk Cad. No:123</p>
+                <p>İstanbul / Türkiye</p>
+                <p>Tel: 0212 123 45 67</p>
+                <hr>
+                <p><strong>Fiş No:</strong> 2024-001</p>
+                <p><strong>Tarih:</strong> 29/11/2024 16:30</p>
+                <hr>
+                <h3>ÜRÜNLER</h3>
+                <p>Ekmek (2 adet) ........... 10.00 TL</p>
+                <p>Süt (1 adet) ............. 25.50 TL</p>
+                <p>Peynir (500g) ............ 85.00 TL</p>
+                <hr>
+                <p><strong>Ara Toplam:</strong> 120.50 TL</p>
+                <p><strong>KDV (%18):</strong> 21.69 TL</p>
+                <p><strong>TOPLAM:</strong> 142.19 TL</p>
+                <hr>
+                <p style="text-align: center;">Bizi tercih ettiğiniz için<br>teşekkür ederiz!</p>
+            </div>
+
+            <!-- Console Log -->
+            <div class="card" style="margin-top: 20px;">
+                <div class="card-title">📋 Console Log</div>
+                <div id="consoleLog" style="font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                    <div style="color: #6c757d;">Konsol logları burada görünecek...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Console override - tüm logları göster
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+
+        function addToConsole(message, type = 'log') {
+            const consoleDiv = document.getElementById('consoleLog');
+            const time = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#dc3545' : type === 'warn' ? '#ffc107' : '#28a745';
+            
+            const logEntry = document.createElement('div');
+            logEntry.style.color = color;
+            logEntry.style.marginBottom = '5px';
+            logEntry.innerHTML = `[${time}] ${message}`;
+            
+            consoleDiv.appendChild(logEntry);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToConsole(args.join(' '), 'log');
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToConsole('ERROR: ' + args.join(' '), 'error');
+        };
+
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addToConsole('WARN: ' + args.join(' '), 'warn');
+        };
+
+        // Android Printer kontrolü
+        function checkAndroidPrinter() {
+            if (typeof AndroidPrinter !== 'undefined') {
+                console.log('✅ AndroidPrinter interface bulundu!');
+                return true;
+            } else {
+                console.error('❌ AndroidPrinter interface bulunamadı!');
+                return false;
+            }
+        }
+
+        // Sayfa yüklendiğinde
+        window.addEventListener('load', function() {
+            console.log('📱 Sayfa yüklendi');
+            
+            if (checkAndroidPrinter()) {
+                loadPrinterSettings();
+                updatePrinterStatus();
+            } else {
+                showStatus('Web tarayıcısında çalışıyorsunuz. Mobil uygulamada açın.', 'error');
+            }
+        });
+
+        // Yazıcı ayarlarını yükle
+        function loadPrinterSettings() {
+            try {
+                const settings = JSON.parse(AndroidPrinter.getPrinterSettings());
+                document.getElementById('ipAddress').value = settings.ipAddress;
+                document.getElementById('port').value = settings.port;
+                console.log('Yazıcı ayarları yüklendi:', settings);
+            } catch (e) {
+                console.error('Ayarlar yüklenemedi:', e);
+            }
+        }
+
+        // Yazıcı durumunu güncelle
+        function updatePrinterStatus() {
+            try {
+                const status = JSON.parse(AndroidPrinter.checkPrinterStatus());
+                const statusDiv = document.getElementById('printerStatus');
+                
+                if (status.connected) {
+                    statusDiv.innerHTML = `
+                        <span class="badge badge-success">✅ Bağlı</span>
+                        <div style="margin-top: 5px; font-size: 12px;">
+                            IP: ${status.ipAddress} | Port: ${status.port}
+                        </div>
+                    `;
+                    console.log('Yazıcı durumu: Bağlı');
+                } else {
+                    statusDiv.innerHTML = '<span class="badge badge-warning">⚠️ Bağlı Değil</span>';
+                    console.warn('Yazıcı durumu: Bağlı değil');
+                }
+            } catch (e) {
+                console.error('Durum kontrolü hatası:', e);
+            }
+        }
+
+        // Ayarları güncelle
+        function updateSettings() {
+            if (!checkAndroidPrinter()) return;
+
+            const ipAddress = document.getElementById('ipAddress').value;
+            const port = document.getElementById('port').value;
+
+            try {
+                AndroidPrinter.updatePrinterSettings(ipAddress, port);
+                console.log('Ayarlar güncellendi:', { ipAddress, port });
+                showStatus('Ayarlar kaydedildi!', 'success');
+                updatePrinterStatus();
+            } catch (e) {
+                console.error('Ayar güncelleme hatası:', e);
+                showStatus('Ayarlar kaydedilemedi!', 'error');
+            }
+        }
+
+        // Fiş yazdır
+        function printReceipt() {
+            if (!checkAndroidPrinter()) {
+                showStatus('AndroidPrinter bulunamadı!', 'error');
+                return;
+            }
+
+            console.log('🖨️ Fiş yazdırma başlatıldı...');
+            showStatus('Fiş yazdırılıyor...', 'info');
+
+            const receiptData = {
+                receiptId: "WEB-" + Date.now(),
+                timestamp: new Date().toISOString(),
+                merchant: {
+                    name: "WebView POS Sistemi",
+                    address: "Mobil Uygulama İçi",
+                    city: "İstanbul",
+                    phone: "0212 555 0000"
+                },
+                items: [
+                    {
+                        name: "Ekmek",
+                        quantity: 2,
+                        unitPrice: 5.00,
+                        totalPrice: 10.00
+                    },
+                    {
+                        name: "Süt",
+                        quantity: 1,
+                        unitPrice: 25.50,
+                        totalPrice: 25.50
+                    },
+                    {
+                        name: "Peynir",
+                        quantity: 1,
+                        unitPrice: 85.00,
+                        totalPrice: 85.00
+                    }
+                ],
+                subtotal: 120.50,
+                tax: 21.69,
+                taxRate: 18,
+                totalAmount: 142.19,
+                paymentMethod: "WebView",
+                currency: "TRY"
+            };
+
+            try {
+                // JSON'u string'e çevir ve Android'e gönder
+                const jsonString = JSON.stringify(receiptData);
+                console.log('Fiş verisi:', receiptData);
+                
+                AndroidPrinter.print(jsonString);
+                console.log('✅ Fiş Android uygulamasına gönderildi');
+                
+            } catch (e) {
+                console.error('Yazdırma hatası:', e);
+                showStatus('Yazdırma hatası: ' + e.message, 'error');
+            }
+        }
+
+        // Test yazdır
+        function printTest() {
+            if (!checkAndroidPrinter()) {
+                showStatus('AndroidPrinter bulunamadı!', 'error');
+                return;
+            }
+
+            console.log('🧪 Test yazdırma başlatıldı...');
+            showStatus('Test yazdırılıyor...', 'info');
+
+            try {
+                AndroidPrinter.printTest();
+                console.log('✅ Test yazdırma komutu gönderildi');
+            } catch (e) {
+                console.error('Test yazdırma hatası:', e);
+                showStatus('Test hatası: ' + e.message, 'error');
+            }
+        }
+
+        // Durum mesajı göster
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.textContent = message;
+            statusDiv.className = `status status-${type}`;
+            statusDiv.style.display = 'block';
+
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        // Android'den gelen callback'ler
+        function onPrintSuccess(receiptId) {
+            console.log('✅ Yazdırma başarılı! Fiş ID:', receiptId);
+            showStatus('Fiş başarıyla yazdırıldı! ID: ' + receiptId, 'success');
+        }
+
+        function onPrintError(error) {
+            console.error('❌ Yazdırma hatası:', error);
+            showStatus('Hata: ' + error, 'error');
+        }
+
+        function onSettingsUpdated(result) {
+            console.log('⚙️ Ayarlar güncellendi:', result);
+        }
+
+        // POS HTML yazdırma fonksiyonu (sizin kodunuz)
+        function print_pos() {
+            const invoiceEl = document.getElementById("invoice-POS");
+            if (!invoiceEl) {
+                console.error("invoice-POS elementi bulunamadı");
+                showStatus("invoice-POS elementi bulunamadı!", 'error');
+                return;
+            }
+
+            const divContents = invoiceEl.innerHTML;
+
+            // Uygulamaya göndereceğimiz veri
+            const payload = {
+                html: divContents,
+                css: "/css/pos_print.css",
+                title: "POS Invoice"
+            };
+
+            // Native Android (WebView.addJavascriptInterface(..., "Android"))
+            if (window.Android && typeof window.Android.printPos === "function") {
+                console.log('🖨️ Android.printPos çağrılıyor...');
+                window.Android.printPos(JSON.stringify(payload));
+                showStatus('POS fişi yazdırılıyor...', 'info');
+            } else {
+                console.error("Android.printPos tanımlı değil!");
+                showStatus("Android.printPos tanımlı değil!", 'error');
+            }
+        }
+
+        // Debug için global fonksiyonlar
+        window.debugPrint = function() {
+            console.log('=== DEBUG INFO ===');
+            console.log('AndroidPrinter:', typeof AndroidPrinter);
+            if (typeof AndroidPrinter !== 'undefined') {
+                console.log('Methods:', Object.getOwnPropertyNames(AndroidPrinter));
+            }
+            console.log('Android:', typeof Android);
+            if (typeof Android !== 'undefined') {
+                console.log('Android Methods:', Object.getOwnPropertyNames(Android));
+            }
+            console.log('==================');
+        };
+
+        console.log('🚀 JavaScript yüklendi ve hazır!');
+    </script>
+</body>
+</html>

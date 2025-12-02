@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basit Test - POS Yazıcı</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #45a049;
+        }
+        .btn-secondary {
+            background: #2196F3;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #0b7dda;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #2196F3;
+        }
+        .code {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖨️ POS Yazıcı Test</h1>
+        
+        <div class="info">
+            <strong>📱 Kullanım:</strong><br>
+            1. Android uygulamasını açın<br>
+            2. Yazıcı IP ve port ayarlarını yapın<br>
+            3. Bu sayfada "Test Fiş Yazdır" butonuna basın<br>
+            4. Uygulama otomatik açılacak ve yazdıracak
+        </div>
+
+        <button class="btn-primary" onclick="printTestReceipt()">
+            🖨️ Test Fiş Yazdır
+        </button>
+
+        <button class="btn-secondary" onclick="printCustomReceipt()">
+            📄 Özel Fiş Yazdır
+        </button>
+
+        <button class="btn-secondary" onclick="printMultipleItems()">
+            🛒 Çoklu Ürün Fişi
+        </button>
+
+        <div id="status"></div>
+
+        <div class="info" style="margin-top: 30px;">
+            <strong>🔍 Debug:</strong>
+            <div class="code" id="debugInfo">
+                Platform: <span id="platform"></span><br>
+                Mobil: <span id="isMobile"></span><br>
+                Android: <span id="isAndroid"></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="pos-printer-bridge.js"></script>
+    <script>
+        // Debug bilgilerini göster
+        document.getElementById('platform').textContent = navigator.platform;
+        document.getElementById('isMobile').textContent = POSPrinterBridge.isMobile() ? 'Evet' : 'Hayır';
+        document.getElementById('isAndroid').textContent = POSPrinterBridge.isAndroid() ? 'Evet' : 'Hayır';
+
+        function showStatus(message, isError = false) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = isError ? 'error' : 'success';
+            statusDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // Test 1: Basit fiş
+        function printTestReceipt() {
+            const receipt = {
+                receiptId: "TEST-" + Date.now(),
+                timestamp: new Date().toISOString(),
+                merchant: {
+                    name: "Test Market",
+                    address: "Test Caddesi No:1",
+                    city: "İstanbul",
+                    phone: "0212 555 0000"
+                },
+                items: [
+                    {
+                        name: "Test Ürünü",
+                        quantity: 1,
+                        unitPrice: 10.00,
+                        totalPrice: 10.00
+                    }
+                ],
+                subtotal: 10.00,
+                tax: 1.80,
+                taxRate: 18,
+                totalAmount: 11.80,
+                paymentMethod: "Test",
+                currency: "TRY"
+            };
+
+            console.log('Fiş gönderiliyor:', receipt);
+            showStatus('Fiş mobil uygulamaya gönderiliyor...');
+            
+            POSPrinterBridge.print(receipt);
+        }
+
+        // Test 2: Özel fiş
+        function printCustomReceipt() {
+            const receipt = {
+                receiptId: "CUSTOM-" + Date.now(),
+                timestamp: new Date().toISOString(),
+                merchant: {
+                    name: "ABC Şirketi",
+                    address: "Atatürk Cad. No:123",
+                    city: "Ankara",
+                    phone: "0312 444 0000",
+                    taxNumber: "1234567890"
+                },
+                items: [
+                    {
+                        name: "Kahve",
+                        quantity: 2,
+                        unitPrice: 15.00,
+                        totalPrice: 30.00
+                    },
+                    {
+                        name: "Çay",
+                        quantity: 1,
+                        unitPrice: 8.00,
+                        totalPrice: 8.00
+                    }
+                ],
+                subtotal: 38.00,
+                tax: 6.84,
+                taxRate: 18,
+                totalAmount: 44.84,
+                paymentMethod: "Kredi Kartı",
+                currency: "TRY"
+            };
+
+            console.log('Özel fiş gönderiliyor:', receipt);
+            showStatus('Özel fiş mobil uygulamaya gönderiliyor...');
+            
+            POSPrinterBridge.print(receipt);
+        }
+
+        // Test 3: Çoklu ürün
+        function printMultipleItems() {
+            const receipt = {
+                receiptId: "MULTI-" + Date.now(),
+                timestamp: new Date().toISOString(),
+                merchant: {
+                    name: "Süpermarket XYZ",
+                    address: "Merkez Mah. No:456",
+                    city: "İzmir",
+                    phone: "0232 333 0000",
+                    taxNumber: "9876543210"
+                },
+                items: [
+                    {
+                        name: "Ekmek",
+                        quantity: 3,
+                        unitPrice: 5.00,
+                        totalPrice: 15.00
+                    },
+                    {
+                        name: "Süt (1L)",
+                        quantity: 2,
+                        unitPrice: 25.50,
+                        totalPrice: 51.00
+                    },
+                    {
+                        name: "Yumurta (10'lu)",
+                        quantity: 1,
+                        unitPrice: 45.00,
+                        totalPrice: 45.00
+                    },
+                    {
+                        name: "Peynir (500g)",
+                        quantity: 1,
+                        unitPrice: 85.00,
+                        totalPrice: 85.00
+                    },
+                    {
+                        name: "Zeytin (1kg)",
+                        quantity: 1,
+                        unitPrice: 120.00,
+                        totalPrice: 120.00
+                    }
+                ],
+                subtotal: 316.00,
+                tax: 56.88,
+                taxRate: 18,
+                totalAmount: 372.88,
+                paymentMethod: "Nakit",
+                currency: "TRY"
+            };
+
+            console.log('Çoklu ürün fişi gönderiliyor:', receipt);
+            showStatus('Çoklu ürün fişi mobil uygulamaya gönderiliyor...');
+            
+            POSPrinterBridge.print(receipt);
+        }
+
+        // Sayfa yüklendiğinde bilgi göster
+        window.addEventListener('load', () => {
+            if (!POSPrinterBridge.isMobile()) {
+                showStatus('⚠️ Bu sayfa mobil cihazda açılmalıdır', true);
+            }
+        });
+    </script>
+</body>
+</html>
