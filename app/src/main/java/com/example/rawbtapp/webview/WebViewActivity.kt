@@ -44,7 +44,11 @@ import android.print.PrintAttributes
 import android.webkit.WebChromeClient
 import android.os.Build
 import androidx.annotation.RequiresApi
-import android.app.AlertDialog
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * WebView ile POS sistemi entegrasyonu
@@ -56,9 +60,50 @@ class WebViewActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private lateinit var printerManager: PrinterManager
     
+    // Pending print data
+    private var pendingHtmlContent: String? = null
+    private var pendingDocumentTitle: String? = null
+    
     companion object {
         private const val TAG = "WebViewActivity"
         const val EXTRA_URL = "extra_url"
+    }
+    
+    // Yazıcı seçim activity launcher
+    private val printerSelectionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            result.data?.let { data ->
+                val printerName = data.getStringExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_NAME) ?: ""
+                val printerNumber = data.getStringExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_NUMBER) ?: "1"
+                val printerIp = data.getStringExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_IP) ?: ""
+                val printerPort = data.getIntExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_PORT, 9100)
+                
+                Log.d(TAG, "Yazıcı seçildi: #$printerNumber - $printerName")
+                
+                // Printer objesi oluştur
+                val printer = Printer(
+                    id = "",
+                    name = printerName,
+                    number = printerNumber,
+                    ipAddress = printerIp,
+                    port = printerPort
+                )
+                
+                // Pending data varsa yazdır
+                if (pendingHtmlContent != null && pendingDocumentTitle != null) {
+                    printWithSelectedPrinter(printer, pendingHtmlContent!!, pendingDocumentTitle!!)
+                    pendingHtmlContent = null
+                    pendingDocumentTitle = null
+                }
+            }
+        } else {
+            Log.d(TAG, "Yazıcı seçimi iptal edildi")
+            pendingHtmlContent = null
+            pendingDocumentTitle = null
+            callJavaScriptCallback("onPrintError", "Kullanıcı iptal etti")
+        }
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -394,60 +439,105 @@ class WebViewActivity : ComponentActivity() {
     }
     
     /**
-     * Yazıcı seçim dialog'unu göster
+     * Yazıcı seçim activity'sini aç
      */
     private fun showPrinterSelectionDialog(htmlContent: String, documentTitle: String) {
         Log.d(TAG, "========================================")
-        Log.d(TAG, "showPrinterSelectionDialog - Yazıcı Seçim Dialog")
+        Log.d(TAG, "showPrinterSelectionDialog - Yazıcı Seçim Activity Açılıyor")
         Log.d(TAG, "========================================")
         
-        // Kayıtlı yazıcıları al
-        val printers = printerManager.getAllPrinters()
+        // Pending data'yı sakla
+        pendingHtmlContent = htmlContent
+        pendingDocumentTitle = documentTitle
         
-        if (printers.isEmpty()) {
-            Log.e(TAG, "✗ Kayıtlı yazıcı bulunamadı")
-            showToast("Lütfen önce ana ekrandan yazıcı ekleyin")
-            callJavaScriptCallback("onPrintError", "Kayıtlı yazıcı bulunamadı")
-            return
-        }
+        // PrinterSelectionActivity'yi aç
+        val intent = android.content.Intent(this, com.example.rawbtapp.printer.PrinterSelectionActivity::class.java)
+        intent.putExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.EXTRA_HTML_CONTENT, htmlContent)
+        intent.putExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.EXTRA_DOCUMENT_TITLE, documentTitle)
+        printerSelectionLauncher.launch(intent)
         
-        Log.d(TAG, "${printers.size} yazıcı bulundu")
+        Log.d(TAG, "✓ PrinterSelectionActivity başlatıldı")
+        Log.d(TAG, "========================================")
+    }
+    
+    /**
+     * Seçilen yazıcı ile yazdırma işlemini gerçekleştir
+     */
+    private fun printWithSelectedPrinter(printer: Printer, htmlContent: String, documentTitle: String) {
+        Log.d(TAG, "printWithSelectedPrinter - ${printer.getDisplayName()}")
         
-        // Yazıcı isimlerini hazırla
-        val printerNames = printers.map { it.getDisplayName() }.toTypedArray()
+        // HTML'e yazıcı bilgisini ekle
+        val htmlWithPrinterInfo = addPrinterInfoToHtml(htmlContent, printer)
         
-        // Dialog oluştur
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Yazıcı Seçin")
-            .setItems(printerNames) { dialogInterface, which ->
-                val selectedPrinter = printers[which]
-                Log.d(TAG, "✓ Yazıcı seçildi: ${selectedPrinter.getDisplayName()}")
-                Log.d(TAG, "IP: ${selectedPrinter.ipAddress}, Port: ${selectedPrinter.port}")
+        // Direkt WiFi yazıcıya gönder (native dialog yok)
+        lifecycleScope.launch {
+            try {
+                Log.d(TAG, "Yazdırma başlatılıyor: ${printer.ipAddress}:${printer.port}")
                 
-                // HTML'e yazıcı bilgisini ekle
-                val htmlWithPrinterInfo = addPrinterInfoToHtml(htmlContent, selectedPrinter)
+                // HTML'i ESC/POS komutlarına çevir ve gönder
+                val success = sendHtmlToPrinter(
+                    htmlContent = htmlWithPrinterInfo,
+                    ipAddress = printer.ipAddress,
+                    port = printer.port
+                )
                 
-                // Native printer dialog'u aç
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    printHtmlContentWithNativeDialog(htmlWithPrinterInfo, "$documentTitle - ${selectedPrinter.getDisplayName()}")
-                    showToast("${selectedPrinter.getDisplayName()} için yazdırma başlatılıyor...")
-                    callJavaScriptCallback("onPrintSuccess", documentTitle)
+                runOnUiThread {
+                    if (success) {
+                        Log.d(TAG, "✓ Yazdırma başarılı")
+                        showToast("✓ Yazdırıldı: ${printer.getDisplayName()}")
+                        callJavaScriptCallback("onPrintSuccess", documentTitle)
+                    } else {
+                        Log.e(TAG, "✗ Yazdırma başarısız")
+                        showToast("✗ Yazdırma hatası: ${printer.getDisplayName()}")
+                        callJavaScriptCallback("onPrintError", "Yazdırma başarısız")
+                    }
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Yazdırma hatası", e)
+                runOnUiThread {
+                    showToast("✗ Hata: ${e.message}")
+                    callJavaScriptCallback("onPrintError", e.message ?: "Bilinmeyen hata")
+                }
+            }
+        }
+    }
+    
+    /**
+     * HTML içeriğini yazıcıya gönder
+     */
+    private suspend fun sendHtmlToPrinter(htmlContent: String, ipAddress: String, port: Int): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                // HTML'den basit metin çıkar
+                val text = htmlContent
+                    .replace("<br>", "\n")
+                    .replace("<br/>", "\n")
+                    .replace("<br />", "\n")
+                    .replace(Regex("<[^>]*>"), "")
+                    .replace("&nbsp;", " ")
+                    .trim()
                 
-                dialogInterface.dismiss()
+                // Socket bağlantısı kur
+                val socket = java.net.Socket()
+                socket.connect(java.net.InetSocketAddress(ipAddress, port), 5000)
+                val outputStream = socket.getOutputStream()
+                
+                // ESC/POS komutları
+                outputStream.write(byteArrayOf(0x1B, 0x40)) // Initialize
+                outputStream.write(text.toByteArray(Charsets.UTF_8))
+                outputStream.write(byteArrayOf(0x0A, 0x0A, 0x0A)) // Line feeds
+                outputStream.write(byteArrayOf(0x1D, 0x56, 0x00)) // Cut paper
+                
+                outputStream.flush()
+                outputStream.close()
+                socket.close()
+                
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Printer connection error", e)
+                false
             }
-            .setNegativeButton("İptal") { dialogInterface, _ ->
-                Log.d(TAG, "Yazdırma iptal edildi")
-                showToast("Yazdırma iptal edildi")
-                callJavaScriptCallback("onPrintError", "Kullanıcı iptal etti")
-                dialogInterface.dismiss()
-            }
-            .setCancelable(false)
-            .create()
-        
-        dialog.show()
-        Log.d(TAG, "✓ Yazıcı seçim dialog gösterildi")
-        Log.d(TAG, "========================================")
+        }
     }
     
     /**

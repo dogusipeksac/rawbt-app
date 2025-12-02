@@ -70,6 +70,14 @@
             android:theme="@style/Theme.RawBTApp"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:windowSoftInputMode="adjustResize" />
+        
+        <!-- Printer Selection Activity -->
+        <activity
+            android:name=".printer.PrinterSelectionActivity"
+            android:exported="false"
+            android:label="Yazıcı Seçin"
+            android:theme="@style/Theme.RawBTApp"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 
 </manifest>

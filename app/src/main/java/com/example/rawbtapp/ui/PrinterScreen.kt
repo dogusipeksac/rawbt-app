@@ -236,7 +236,7 @@ fun PrintButtonsCard(
                     )
                 }
                 Text(
-                    text = "Yazdırma İşlemleri",
+                    text = "Web POS Sistemi",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -245,79 +245,13 @@ fun PrintButtonsCard(
             
             Spacer(modifier = Modifier.height(4.dp))
             
-            // Test yazdırma butonu
+            // WebView butonu - Tek buton
             Button(
-                onClick = onTestPrint,
-                enabled = !isLoading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Text(
-                    "Test Yazdır",
-                    style = MaterialTheme.typography.titleSmall
-                )
-            }
-            
-            // Özel metin yazdırma butonu
-            FilledTonalButton(
-                onClick = onPrintCustomText,
-                enabled = !isLoading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Text(
-                    "Metin Yazdır",
-                    style = MaterialTheme.typography.titleSmall
-                )
-            }
-            
-            // Örnek fiş yazdırma butonu
-            OutlinedButton(
-                onClick = onPrintSampleReceipt,
-                enabled = !isLoading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Text(
-                    "Örnek Fiş Yazdır",
-                    style = MaterialTheme.typography.titleSmall
-                )
-            }
-            
-            // Demo yazdırma butonu
-            OutlinedButton(
-                onClick = onPrintDemo,
-                enabled = !isLoading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Text(
-                    "ESC/POS Demo",
-                    style = MaterialTheme.typography.titleSmall
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // WebView butonu - Öne çıkan tasarım
-            FilledTonalButton(
                 onClick = onOpenWebView,
                 enabled = !isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(64.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                ),
                 shape = MaterialTheme.shapes.large,
                 elevation = ButtonDefaults.buttonElevation(
                     defaultElevation = 3.dp,
@@ -327,12 +261,12 @@ fun PrintButtonsCard(
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = null,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(28.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    "Web POS Aç",
-                    style = MaterialTheme.typography.titleMedium,
+                    "🌐 Web POS Aç",
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
             }
