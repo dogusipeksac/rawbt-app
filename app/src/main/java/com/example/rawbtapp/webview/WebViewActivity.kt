@@ -1,5 +1,6 @@
 package com.example.rawbtapp.webview
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.Environment
 import java.io.File
@@ -69,6 +70,8 @@ class WebViewActivity : ComponentActivity() {
     companion object {
         private const val TAG = "WebViewActivity"
         const val EXTRA_URL = "extra_url"
+        const val EXTRA_WEBSITE_NAME = "WEBSITE_NAME"
+        const val EXTRA_WEBSITE_URL = "WEBSITE_URL"
     }
 
     // Yazıcı seçim activity launcher
@@ -130,15 +133,18 @@ class WebViewActivity : ComponentActivity() {
         Log.d(TAG, "WebViewActivity onCreate - SAYFA: POS Web Sistemi")
         Log.d(TAG, "========================================")
 
-
-        // Config dosyasından URL'i al
+        // Intent'ten URL ve isim al
+        val websiteName = intent.getStringExtra(EXTRA_WEBSITE_NAME)
+        val websiteUrl = intent.getStringExtra(EXTRA_WEBSITE_URL)
+        
+        // Fallback: Config dosyasından al
         val configUrl = getString(R.string.webview_url)
-        val url = intent.getStringExtra(EXTRA_URL) ?: configUrl
+        val configTitle = getString(R.string.webview_title)
+        
+        val url = websiteUrl ?: intent.getStringExtra(EXTRA_URL) ?: configUrl
+        val title = websiteName ?: configTitle
 
-        Log.d(TAG, "Loading URL from config: $url")
-
-        // Config'den başlığı al
-        val title = getString(R.string.webview_title)
+        Log.d(TAG, "Loading URL: $url")
         Log.d(TAG, "WebView Title: $title")
 
         setContent {
@@ -149,8 +155,7 @@ class WebViewActivity : ComponentActivity() {
                     onWebViewCreated = { wv ->
                         webView = wv
                         setupWebView(wv)
-                    },
-                    onBackPressed = { finish() }
+                    }
                 )
             }
         }
@@ -1543,9 +1548,8 @@ class WebViewActivity : ComponentActivity() {
     }
 
     /**
-     * Önizleme göster - Android Print Dialog kullanarak
+     * Önizleme göster - Kendi PreviewActivity'mizi kullanarak
      */
-    @RequiresApi(Build.VERSION_CODES.KITKAT)
     private fun showPrintPreview(htmlContent: String, title: String) {
         Log.d(TAG, "========================================")
         Log.d(TAG, "showPrintPreview - Önizleme Gösteriliyor")
@@ -1554,13 +1558,7 @@ class WebViewActivity : ComponentActivity() {
         Log.d(TAG, "HTML length: ${htmlContent.length}")
         
         try {
-            // Geçici WebView oluştur
-            val previewWebView = WebView(this).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-            }
-            
-            // HTML içeriğini yükle - Basit wrapper
+            // HTML içeriğini wrapper ile hazırla
             val fullHtml = """
                 <!DOCTYPE html>
                 <html>
@@ -1582,30 +1580,14 @@ class WebViewActivity : ComponentActivity() {
                 </html>
             """.trimIndent()
             
-            previewWebView.loadDataWithBaseURL(null, fullHtml, "text/html", "UTF-8", null)
-            
-            // WebView yüklendikten sonra print dialog'u aç
-            previewWebView.webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    super.onPageFinished(view, url)
-                    Log.d(TAG, "Preview WebView loaded, opening print dialog...")
-                    
-                    // Android Print Dialog'u aç
-                    val printManager = getSystemService(Context.PRINT_SERVICE) as PrintManager
-                    val printAdapter = previewWebView.createPrintDocumentAdapter(title)
-                    
-                    printManager.print(
-                        title,
-                        printAdapter,
-                        PrintAttributes.Builder()
-                            .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
-                            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-                            .build()
-                    )
-                    
-                    Log.d(TAG, "✓ Print preview dialog opened")
-                }
+            // PreviewActivity'yi aç
+            val intent = Intent(this, com.example.rawbtapp.preview.PreviewActivity::class.java).apply {
+                putExtra(com.example.rawbtapp.preview.PreviewActivity.EXTRA_HTML_CONTENT, fullHtml)
+                putExtra(com.example.rawbtapp.preview.PreviewActivity.EXTRA_TITLE, title)
             }
+            startActivity(intent)
+            
+            Log.d(TAG, "✓ PreviewActivity opened")
             
         } catch (e: Exception) {
             Log.e(TAG, "Error showing print preview", e)
@@ -1615,35 +1597,31 @@ class WebViewActivity : ComponentActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        // Sadece WebView history'de geri git, Activity'yi kapatma
         if (::webView.isInitialized && webView.canGoBack()) {
             webView.goBack()
+            Log.d(TAG, "WebView navigated back")
         } else {
-            @Suppress("DEPRECATION")
-            super.onBackPressed()
+            Log.d(TAG, "WebView at first page, staying in WebView")
+            // Activity'yi kapatma, WebView'de kal
         }
     }
 }
 
 /**
- * WebView Compose UI
+ * WebView Compose UI - Tam ekran, geri butonu yok
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WebViewScreen(
     url: String,
     title: String = "POS Web Sistemi",
-    onWebViewCreated: (WebView) -> Unit,
-    onBackPressed: () -> Unit
+    onWebViewCreated: (WebView) -> Unit
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onBackPressed) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer

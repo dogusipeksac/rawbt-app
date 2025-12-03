@@ -46,25 +46,10 @@ class MainActivity : ComponentActivity() {
         // Deep link'i işle
         handleDeepLink(intent)
         
-        // Config'den otomatik açılma kontrolü
-        val autoOpen = resources.getBoolean(R.bool.webview_auto_open)
-        Log.d(TAG, "WebView auto-open config: $autoOpen")
-        if (autoOpen) {
-            Log.d(TAG, "Auto-opening default website")
-            val defaultSite = Website.getDefaultTemplate()
-            openWebsite(defaultSite)
-        }
-        
-        setContent {
-            RawBTAppTheme {
-                MainScreen(
-                    websiteManager = websiteManager,
-                    printerViewModel = viewModel,
-                    onOpenWebsite = { website -> openWebsite(website) },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-        }
+        // İlk açılışta direkt web sitesini aç
+        Log.d(TAG, "Auto-opening default website: 7 Days Stock System")
+        val defaultSite = Website.getDefaultTemplate()
+        openWebsite(defaultSite)
     }
     
     override fun onNewIntent(intent: Intent) {

@@ -78,6 +78,15 @@
             android:label="Yazıcı Seçin"
             android:theme="@style/Theme.RawBTApp"
             android:windowSoftInputMode="adjustResize" />
+        
+        <!-- Preview Activity -->
+        <activity
+            android:name=".preview.PreviewActivity"
+            android:exported="false"
+            android:label="Önizleme"
+            android:theme="@style/Theme.RawBTApp"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 
 </manifest>

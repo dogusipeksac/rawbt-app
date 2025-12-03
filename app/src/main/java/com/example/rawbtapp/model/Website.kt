@@ -23,7 +23,7 @@ data class Website(
             return Website(
                 id = "default_7days",
                 name = "7 Days Stok Sistemi",
-                url = "https://stock.7dayshavacilik.com/",
+                url = "https://stock.7dayshavacilik.com/app/pos",
                 description = "7 Days Havacılık Stok Yönetim Sistemi",
                 isDefault = true
             )

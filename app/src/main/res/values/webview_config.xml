@@ -15,7 +15,7 @@
         - Canlı site: https://yoursite.com/pos
         - Dahili sayfa: file:///android_asset/pos-web.html (varsayılan)
     -->
-    <string name="webview_url">https://stock.7dayshavacilik.com/login</string>
+    <string name="webview_url">https://stock.7dayshavacilik.com/app/pos</string>
     
     <!-- 
         WebView Başlık

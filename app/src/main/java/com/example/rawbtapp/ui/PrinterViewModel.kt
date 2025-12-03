@@ -11,6 +11,7 @@ import com.example.rawbtapp.printer.PrinterRepository
 import com.example.rawbtapp.printer.PrinterManager
 import com.example.rawbtapp.printer.PrintConstants
 import com.example.rawbtapp.printer.TurkishCharacterEncoder
+import com.example.rawbtapp.printer.ThermalReceiptBuilder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -364,59 +365,20 @@ class PrinterViewModel(application: Application) : AndroidViewModel(application)
     }
     
     /**
-     * Önizleme içeriğini oluştur
-     * Örnek fiş içeriğini logo ve footer ile birlikte döndürür
-     * Printer bilgisi olmadan, sadece web içeriği + logo + footer
+     * Önizleme içeriği oluştur - 80mm Termal Receipt HTML
      */
     fun getPreviewContent(): String {
         return try {
-            val content = StringBuilder()
+            val builder = ThermalReceiptBuilder(getApplication())
             
-            // Logo ekle
-            if (PrintConstants.SHOW_LOGO) {
-                content.append(PrintConstants.getFormattedLogo())
-            }
+            // Örnek fiş verisi oluştur
+            val sampleData = ThermalReceiptBuilder.getSampleReceipt()
             
-            // Başlık
-            content.append(PrintConstants.centerText("Invoice POS")).append("\n")
-            content.append("\n")
+            // HTML oluştur
+            val html = builder.buildReceipt(sampleData)
             
-            // Tarih ve saat
-            val dateFormat = java.text.SimpleDateFormat("yyyy.MM.dd HH:mm:ss", java.util.Locale("tr", "TR"))
-            val currentDate = dateFormat.format(java.util.Date())
-            content.append("Date : $currentDate\n")
-            content.append("\n")
-            
-            // Ürünler (Web'den gelecek içerik örneği)
-            content.append("Caramel Latte\n")
-            content.append(PrintConstants.twoColumnText("1.00 Ad x 55.00", "55.00")).append("\n")
-            content.append(PrintConstants.twoColumnText("Order Tax", "TL 0.00 (0.00 %)")).append("\n")
-            content.append(PrintConstants.twoColumnText("Discount", "TL 0.00")).append("\n")
-            content.append(PrintConstants.twoColumnText("Shipping", "TL 0.00")).append("\n")
-            content.append(PrintConstants.twoColumnText("Grand Total", "TL 55.00")).append("\n")
-            content.append("\n")
-            
-            // Ödeme bilgileri
-            content.append(PrintConstants.horizontalLine()).append("\n")
-            content.append(PrintConstants.twoColumnText("Paid By", "Amount:")).append("\n")
-            content.append(PrintConstants.twoColumnText("Cash", "55.00")).append("\n")
-            content.append("\n")
-            content.append(PrintConstants.twoColumnText("", "Change Return:")).append("\n")
-            content.append(PrintConstants.twoColumnText("", "0.00")).append("\n")
-            content.append("\n")
-            
-            // Türkçe karakter testi
-            content.append("Türkçe Test:\n")
-            content.append("Çağrı, Şişli'de güzel bir\n")
-            content.append("öğle yemeği yedi.\n")
-            content.append("\n")
-            
-            // Footer ekle
-            if (PrintConstants.SHOW_FOOTER) {
-                content.append(PrintConstants.getFormattedFooter())
-            }
-            
-            content.toString()
+            Log.d(TAG, "Preview HTML created: ${html.length} characters")
+            html
         } catch (e: Exception) {
             Log.e(TAG, "Error creating preview content", e)
             "Önizleme içeriği oluşturulamadı: ${e.message}"
