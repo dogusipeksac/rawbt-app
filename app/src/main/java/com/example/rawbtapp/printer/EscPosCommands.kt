@@ -51,10 +51,11 @@ class EscPosCommands {
     
     /**
      * Yazıcıyı başlat
+     * Türkçe karakter desteği ile (PC857 - Turkish)
      */
     fun initialize(): EscPosCommands {
         buffer.write(INIT)
-        buffer.write(CHARSET_PC857) // Türkçe karakter desteği
+        buffer.write(CHARSET_PC857) // Türkçe karakter desteği (PC857 - Turkish)
         return this
     }
     

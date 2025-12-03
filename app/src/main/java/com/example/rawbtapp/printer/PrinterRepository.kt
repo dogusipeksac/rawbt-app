@@ -301,6 +301,7 @@ class PrinterRepository {
     /**
      * HTML içeriğini direkt yazdır
      * WebView'dan gelen HTML içeriğini ESC/POS formatına çevirir
+     * Logo ve footer ile birlikte formatlanmış fiş yazdırır
      */
     suspend fun printHtmlContent(
         ipAddress: String,
@@ -311,20 +312,30 @@ class PrinterRepository {
         val printData = buildEscPosCommand {
             initialize()
             
+            // Logo ekle (eğer aktifse)
+            if (PrintConstants.SHOW_LOGO) {
+                alignCenter()
+                val logoLines = PrintConstants.RECEIPT_LOGO.trimIndent().split("\n")
+                logoLines.forEach { line ->
+                    textLine(line)
+                }
+                newLine(PrintConstants.LOGO_SPACING)
+            }
+            
             // Başlık
             alignCenter()
             doubleTextLine(title)
             newLine()
-            horizontalLine("=")
+            horizontalLine(PrintConstants.HORIZONTAL_LINE_BOLD_CHAR)
             
             // HTML içeriğini satır satır yazdır
             alignLeft()
             val lines = htmlContent.split("\n")
             for (line in lines) {
                 if (line.isNotBlank()) {
-                    // Uzun satırları böl (32 karakter)
-                    if (line.length > 32) {
-                        val chunks = line.chunked(32)
+                    // Uzun satırları böl
+                    if (line.length > PrintConstants.RECEIPT_WIDTH) {
+                        val chunks = line.chunked(PrintConstants.RECEIPT_WIDTH)
                         chunks.forEach { chunk ->
                             textLine(chunk)
                         }
@@ -334,14 +345,32 @@ class PrinterRepository {
                 }
             }
             
-            // Alt bilgi
-            newLine()
-            horizontalLine("=")
-            alignCenter()
-            textLine(getCurrentDateTime())
+            // Footer ekle (eğer aktifse)
+            if (PrintConstants.SHOW_FOOTER) {
+                newLine(PrintConstants.FOOTER_TOP_SPACING)
+                horizontalLine(PrintConstants.HORIZONTAL_LINE_BOLD_CHAR)
+                alignCenter()
+                
+                val footerLines = PrintConstants.FOOTER_THANK_YOU.split("\n")
+                footerLines.forEach { line ->
+                    textLine(line)
+                }
+                
+                if (PrintConstants.FOOTER_WEBSITE.isNotEmpty()) {
+                    textLine(PrintConstants.FOOTER_WEBSITE)
+                }
+                if (PrintConstants.FOOTER_PHONE.isNotEmpty()) {
+                    textLine(PrintConstants.FOOTER_PHONE)
+                }
+                if (PrintConstants.FOOTER_ADDRESS.isNotEmpty()) {
+                    textLine(PrintConstants.FOOTER_ADDRESS)
+                }
+                
+                horizontalLine(PrintConstants.HORIZONTAL_LINE_BOLD_CHAR)
+            }
             
             // Kağıt besle ve kes
-            feedPaper(4)
+            feedPaper(PrintConstants.FOOTER_BOTTOM_SPACING)
             cutPaper()
         }
         

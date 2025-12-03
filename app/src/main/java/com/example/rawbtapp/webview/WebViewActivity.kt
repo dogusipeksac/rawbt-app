@@ -35,6 +35,8 @@ import com.example.rawbtapp.ui.PrinterViewModel
 import com.example.rawbtapp.ui.theme.RawBTAppTheme
 import com.example.rawbtapp.R
 import com.example.rawbtapp.printer.PrinterManager
+import com.example.rawbtapp.printer.PrintConstants
+import com.example.rawbtapp.printer.TurkishCharacterEncoder
 import org.json.JSONException
 import android.util.Log
 import android.webkit.WebSettings
@@ -736,38 +738,68 @@ class WebViewActivity : ComponentActivity() {
 
     /**
      * HTML içeriğini yazıcıya gönder
+     * Logo ve footer ile birlikte formatlanmış fiş yazdırır
      */
-    private suspend fun sendHtmlToPrinter(htmlContent: String, ipAddress: String, port: Int): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                // HTML'den düzgün metin çıkar (parseHtmlToText kullan)
-                val text = parseHtmlToText(htmlContent)
+    private suspend fun sendHtmlToPrinter(
+        htmlContent: String, 
+        ipAddress: String, 
+        port: Int
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "Sending HTML to printer: $ipAddress:$port")
+            
+            // HTML'den temiz metin çıkar
+            val cleanText = TurkishCharacterEncoder.extractTextFromHtml(htmlContent)
+            
+            // Fiş içeriğini oluştur (logo + içerik + footer)
+            val receiptContent = buildReceiptContent(cleanText)
+            
+            // Socket bağlantısı kur
+            val socket = java.net.Socket()
+            socket.connect(java.net.InetSocketAddress(ipAddress, port), 5000)
+            val outputStream = socket.getOutputStream()
 
-                // Socket bağlantısı kur
-                val socket = java.net.Socket()
-                socket.connect(java.net.InetSocketAddress(ipAddress, port), 5000)
-                val outputStream = socket.getOutputStream()
+            // ESC/POS başlatma komutları (Türkçe karakter desteği ile)
+            outputStream.write(TurkishCharacterEncoder.getEscPosInitCommands())
+            
+            // İçeriği Türkçe karakter desteği ile gönder
+            outputStream.write(TurkishCharacterEncoder.encodeForPrinter(receiptContent))
+            
+            // Kağıdı kes
+            outputStream.write(byteArrayOf(0x1D, 0x56, 0x00))
 
-                // ESC/POS komutları - Türkçe karakter desteği için
-                outputStream.write(byteArrayOf(0x1B, 0x40)) // Initialize
-                outputStream.write(byteArrayOf(0x1B, 0x74, 0x0D)) // Charset PC857 (Turkish)
-                
-                // Metni Windows-1254 encoding ile gönder (Türkçe karakterler için)
-                outputStream.write(text.toByteArray(charset("Windows-1254")))
-                
-                outputStream.write(byteArrayOf(0x0A, 0x0A, 0x0A)) // Line feeds
-                outputStream.write(byteArrayOf(0x1D, 0x56, 0x00)) // Cut paper
+            outputStream.flush()
+            outputStream.close()
+            socket.close()
 
-                outputStream.flush()
-                outputStream.close()
-                socket.close()
-
-                true
-            } catch (e: Exception) {
-                Log.e(TAG, "Printer connection error", e)
-                false
-            }
+            Log.d(TAG, "✓ Print successful")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "✗ Printer connection error", e)
+            false
         }
+    }
+    
+    /**
+     * Fiş içeriğini oluştur (logo + içerik + footer)
+     */
+    private fun buildReceiptContent(content: String): String {
+        val receipt = StringBuilder()
+        
+        // Logo ekle
+        if (PrintConstants.SHOW_LOGO) {
+            receipt.append(PrintConstants.getFormattedLogo())
+        }
+        
+        // İçerik ekle
+        receipt.append(content)
+        
+        // Footer ekle
+        if (PrintConstants.SHOW_FOOTER) {
+            receipt.append(PrintConstants.getFormattedFooter())
+        }
+        
+        return receipt.toString()
     }
 
     /**
@@ -803,72 +835,10 @@ class WebViewActivity : ComponentActivity() {
 
     /**
      * HTML'i basit text'e çevir
-     * HTML tag'lerini ve gereksiz verileri temizler
+     * TurkishCharacterEncoder kullanarak Türkçe karakterleri korur
      */
     private fun parseHtmlToText(html: String): String {
-        // HTML tag'lerini temizle
-        var text = html
-            // Önce script ve style tag'lerini tamamen kaldır
-            .replace(Regex("<script[^>]*>.*?</script>", RegexOption.DOT_MATCHES_ALL), "")
-            .replace(Regex("<style[^>]*>.*?</style>", RegexOption.DOT_MATCHES_ALL), "")
-            // HTML header tag'lerini kaldır
-            .replace(Regex("<head[^>]*>.*?</head>", RegexOption.DOT_MATCHES_ALL), "")
-            .replace(Regex("<!DOCTYPE[^>]*>", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("<html[^>]*>", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("</html>", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("<body[^>]*>", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("</body>", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("<meta[^>]*>", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("<link[^>]*>", RegexOption.IGNORE_CASE), "")
-            // Satır sonları için tag'ler
-            .replace("<br>", "\n")
-            .replace("<br/>", "\n")
-            .replace("<br />", "\n")
-            .replace(Regex("<br[^>]*>", RegexOption.IGNORE_CASE), "\n")
-            .replace("</p>", "\n")
-            .replace("</div>", "\n")
-            .replace("</h1>", "\n")
-            .replace("</h2>", "\n")
-            .replace("</h3>", "\n")
-            .replace("</h4>", "\n")
-            .replace("</h5>", "\n")
-            .replace("</h6>", "\n")
-            .replace("</tr>", "\n")
-            .replace("</li>", "\n")
-            .replace("</td>", " ")
-            .replace("</th>", " ")
-
-        // Tüm kalan HTML tag'lerini kaldır
-        text = text.replace(Regex("<[^>]*>"), "")
-
-        // HTML entity'leri decode et (Türkçe karakterler dahil)
-        text = text
-            .replace("&nbsp;", " ")
-            .replace("&amp;", "&")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&quot;", "\"")
-            .replace("&#39;", "'")
-            .replace("&#199;", "Ç")
-            .replace("&#231;", "ç")
-            .replace("&#286;", "Ğ")
-            .replace("&#287;", "ğ")
-            .replace("&#304;", "İ")
-            .replace("&#305;", "ı")
-            .replace("&#214;", "Ö")
-            .replace("&#246;", "ö")
-            .replace("&#350;", "Ş")
-            .replace("&#351;", "ş")
-            .replace("&#220;", "Ü")
-            .replace("&#252;", "ü")
-
-        // Fazla boşlukları temizle
-        text = text.replace(Regex("[ \\t]+"), " ")
-        text = text.replace(Regex("\n[ \\t]+"), "\n")
-        text = text.replace(Regex("[ \\t]+\n"), "\n")
-        text = text.replace(Regex("\n{3,}"), "\n\n")
-
-        return text.trim()
+        return TurkishCharacterEncoder.extractTextFromHtml(html)
     }
 
     /**
@@ -1107,26 +1077,10 @@ class WebViewActivity : ComponentActivity() {
     
     /**
      * PDF Unicode escape sequence'lerini decode et
+     * TurkishCharacterEncoder kullanarak Türkçe karakterleri korur
      */
     private fun decodePdfUnicode(text: String): String {
-        var result = text
-        
-        // Türkçe karakterler için özel mapping
-        result = result
-            .replace("\\303\\207", "Ç")  // Ç
-            .replace("\\303\\247", "ç")  // ç
-            .replace("\\304\\236", "Ğ")  // Ğ
-            .replace("\\304\\237", "ğ")  // ğ
-            .replace("\\304\\260", "İ")  // İ
-            .replace("\\304\\261", "ı")  // ı
-            .replace("\\303\\226", "Ö")  // Ö
-            .replace("\\303\\266", "ö")  // ö
-            .replace("\\305\\236", "Ş")  // Ş
-            .replace("\\305\\237", "ş")  // ş
-            .replace("\\303\\234", "Ü")  // Ü
-            .replace("\\303\\274", "ü")  // ü
-        
-        return result
+        return TurkishCharacterEncoder.decodePdfUnicode(text)
     }
 
     /**
@@ -1517,43 +1471,8 @@ class WebViewActivity : ComponentActivity() {
         }
 
         // Varsayılan print CSS
-        val defaultPrintCss = """
-            <style>
-                @media print {
-                    body {
-                        margin: 0;
-                        padding: 0;
-                        font-family: 'Courier New', monospace;
-                        font-size: 12pt;
-                    }
-                    @page {
-                        margin: 0;
-                        size: 80mm auto;
-                    }
-                }
-                body {
-                    font-family: 'Courier New', monospace;
-                    font-size: 12pt;
-                    line-height: 1.4;
-                    max-width: 80mm;
-                    margin: 0 auto;
-                    padding: 10px;
-                }
-                h1, h2, h3 {
-                    margin: 10px 0;
-                    text-align: center;
-                }
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                }
-                hr {
-                    border: none;
-                    border-top: 1px dashed #000;
-                    margin: 10px 0;
-                }
-            </style>
-        """.trimIndent()
+        // PrintConstants'tan CSS stillerini al
+        val defaultPrintCss = "<style>\n${PrintConstants.HTML_PRINT_CSS}\n</style>"
 
         val fullHtml = """
             <!DOCTYPE html>
