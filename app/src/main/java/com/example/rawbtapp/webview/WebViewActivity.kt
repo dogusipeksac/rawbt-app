@@ -740,23 +740,21 @@ class WebViewActivity : ComponentActivity() {
     private suspend fun sendHtmlToPrinter(htmlContent: String, ipAddress: String, port: Int): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                // HTML'den basit metin çıkar
-                val text = htmlContent
-                    .replace("<br>", "\n")
-                    .replace("<br/>", "\n")
-                    .replace("<br />", "\n")
-                    .replace(Regex("<[^>]*>"), "")
-                    .replace("&nbsp;", " ")
-                    .trim()
+                // HTML'den düzgün metin çıkar (parseHtmlToText kullan)
+                val text = parseHtmlToText(htmlContent)
 
                 // Socket bağlantısı kur
                 val socket = java.net.Socket()
                 socket.connect(java.net.InetSocketAddress(ipAddress, port), 5000)
                 val outputStream = socket.getOutputStream()
 
-                // ESC/POS komutları
+                // ESC/POS komutları - Türkçe karakter desteği için
                 outputStream.write(byteArrayOf(0x1B, 0x40)) // Initialize
-                outputStream.write(text.toByteArray(Charsets.UTF_8))
+                outputStream.write(byteArrayOf(0x1B, 0x74, 0x0D)) // Charset PC857 (Turkish)
+                
+                // Metni Windows-1254 encoding ile gönder (Türkçe karakterler için)
+                outputStream.write(text.toByteArray(charset("Windows-1254")))
+                
                 outputStream.write(byteArrayOf(0x0A, 0x0A, 0x0A)) // Line feeds
                 outputStream.write(byteArrayOf(0x1D, 0x56, 0x00)) // Cut paper
 
@@ -805,25 +803,45 @@ class WebViewActivity : ComponentActivity() {
 
     /**
      * HTML'i basit text'e çevir
+     * HTML tag'lerini ve gereksiz verileri temizler
      */
     private fun parseHtmlToText(html: String): String {
         // HTML tag'lerini temizle
         var text = html
+            // Önce script ve style tag'lerini tamamen kaldır
+            .replace(Regex("<script[^>]*>.*?</script>", RegexOption.DOT_MATCHES_ALL), "")
+            .replace(Regex("<style[^>]*>.*?</style>", RegexOption.DOT_MATCHES_ALL), "")
+            // HTML header tag'lerini kaldır
+            .replace(Regex("<head[^>]*>.*?</head>", RegexOption.DOT_MATCHES_ALL), "")
+            .replace(Regex("<!DOCTYPE[^>]*>", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("<html[^>]*>", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("</html>", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("<body[^>]*>", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("</body>", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("<meta[^>]*>", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("<link[^>]*>", RegexOption.IGNORE_CASE), "")
+            // Satır sonları için tag'ler
             .replace("<br>", "\n")
             .replace("<br/>", "\n")
             .replace("<br />", "\n")
+            .replace(Regex("<br[^>]*>", RegexOption.IGNORE_CASE), "\n")
             .replace("</p>", "\n")
             .replace("</div>", "\n")
             .replace("</h1>", "\n")
             .replace("</h2>", "\n")
             .replace("</h3>", "\n")
+            .replace("</h4>", "\n")
+            .replace("</h5>", "\n")
+            .replace("</h6>", "\n")
             .replace("</tr>", "\n")
             .replace("</li>", "\n")
+            .replace("</td>", " ")
+            .replace("</th>", " ")
 
-        // Tüm HTML tag'lerini kaldır
+        // Tüm kalan HTML tag'lerini kaldır
         text = text.replace(Regex("<[^>]*>"), "")
 
-        // HTML entity'leri decode et
+        // HTML entity'leri decode et (Türkçe karakterler dahil)
         text = text
             .replace("&nbsp;", " ")
             .replace("&amp;", "&")
@@ -831,6 +849,18 @@ class WebViewActivity : ComponentActivity() {
             .replace("&gt;", ">")
             .replace("&quot;", "\"")
             .replace("&#39;", "'")
+            .replace("&#199;", "Ç")
+            .replace("&#231;", "ç")
+            .replace("&#286;", "Ğ")
+            .replace("&#287;", "ğ")
+            .replace("&#304;", "İ")
+            .replace("&#305;", "ı")
+            .replace("&#214;", "Ö")
+            .replace("&#246;", "ö")
+            .replace("&#350;", "Ş")
+            .replace("&#351;", "ş")
+            .replace("&#220;", "Ü")
+            .replace("&#252;", "ü")
 
         // Fazla boşlukları temizle
         text = text.replace(Regex("[ \\t]+"), " ")
@@ -1029,7 +1059,8 @@ class WebViewActivity : ComponentActivity() {
         Log.d(TAG, "Extracting text from PDF...")
 
         try {
-            // PDF'i string'e çevir ve temizle
+            // PDF'i string'e çevir - UTF-8 desteği için
+            // PDF genelde Latin-1 encoding kullanır ama Türkçe karakterler için özel işlem gerekir
             val pdfString = String(pdfData, Charsets.ISO_8859_1)
 
             // PDF stream'lerini bul ve metin çıkar
@@ -1046,10 +1077,14 @@ class WebViewActivity : ComponentActivity() {
                 val textMatches = textPattern.findAll(streamContent)
 
                 for (textMatch in textMatches) {
-                    val text = textMatch.groupValues[1]
+                    var text = textMatch.groupValues[1]
                         .replace("\\\\n", "\n")
                         .replace("\\\\r", "")
                         .replace("\\\\t", "\t")
+                    
+                    // PDF'deki Unicode escape sequence'leri decode et
+                    text = decodePdfUnicode(text)
+                    
                     extractedText.append(text).append("\n")
                 }
             }
@@ -1069,6 +1104,30 @@ class WebViewActivity : ComponentActivity() {
             return "PDF İçeriği\n\nPDF başarıyla alındı ve yazdırılıyor.\n\nBoyut: ${pdfData.size} bytes"
         }
     }
+    
+    /**
+     * PDF Unicode escape sequence'lerini decode et
+     */
+    private fun decodePdfUnicode(text: String): String {
+        var result = text
+        
+        // Türkçe karakterler için özel mapping
+        result = result
+            .replace("\\303\\207", "Ç")  // Ç
+            .replace("\\303\\247", "ç")  // ç
+            .replace("\\304\\236", "Ğ")  // Ğ
+            .replace("\\304\\237", "ğ")  // ğ
+            .replace("\\304\\260", "İ")  // İ
+            .replace("\\304\\261", "ı")  // ı
+            .replace("\\303\\226", "Ö")  // Ö
+            .replace("\\303\\266", "ö")  // ö
+            .replace("\\305\\236", "Ş")  // Ş
+            .replace("\\305\\237", "ş")  // ş
+            .replace("\\303\\234", "Ü")  // Ü
+            .replace("\\303\\274", "ü")  // ü
+        
+        return result
+    }
 
     /**
      * Alternatif PDF metin çıkarma
@@ -1081,9 +1140,13 @@ class WebViewActivity : ComponentActivity() {
         val matches = tjPattern.findAll(pdfString)
 
         for (match in matches) {
-            val text = match.groupValues[1]
+            var text = match.groupValues[1]
                 .replace("\\\\n", "\n")
                 .replace("\\\\r", "")
+            
+            // Unicode decode
+            text = decodePdfUnicode(text)
+            
             result.append(text).append("\n")
         }
 
@@ -1339,9 +1402,9 @@ class WebViewActivity : ComponentActivity() {
                 }
             }
 
-            // HTML içeriğini yükle
+            // HTML içeriğini yükle - UTF-8 encoding ile
             Log.d(TAG, "Loading HTML content into temporary WebView...")
-            printWebView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
+            printWebView.loadDataWithBaseURL(null, htmlContent, "text/html; charset=UTF-8", "UTF-8", null)
 
         } catch (e: Exception) {
             Log.e(TAG, "✗ Error printing HTML content", e)
@@ -1426,9 +1489,9 @@ class WebViewActivity : ComponentActivity() {
                 }
             }
 
-            // HTML içeriğini yükle
+            // HTML içeriğini yükle - UTF-8 encoding ile
             Log.d(TAG, "Loading HTML into temporary WebView...")
-            printWebView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
+            printWebView.loadDataWithBaseURL(null, htmlContent, "text/html; charset=UTF-8", "UTF-8", null)
 
         } catch (e: Exception) {
             Log.e(TAG, "✗ Error in printHtmlContentWithNativeDialog", e)
@@ -1494,9 +1557,10 @@ class WebViewActivity : ComponentActivity() {
 
         val fullHtml = """
             <!DOCTYPE html>
-            <html>
+            <html lang="tr">
             <head>
                 <meta charset="UTF-8">
+                <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>$title</title>
                 $cssLink
