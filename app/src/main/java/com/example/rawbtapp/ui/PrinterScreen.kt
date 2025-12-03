@@ -1,5 +1,6 @@
 package com.example.rawbtapp.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -12,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +37,7 @@ fun PrinterScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showPreview by remember { mutableStateOf(false) }
     
     // Mesaj gösterimi için effect
     LaunchedEffect(uiState.message) {
@@ -68,6 +71,21 @@ fun PrinterScreen(
                 )
             )
         },
+        floatingActionButton = {
+            // Önizleme FAB - Sadece yazıcı seçiliyse göster
+            if (uiState.selectedPrinter != null) {
+                FloatingActionButton(
+                    onClick = { showPreview = true },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Search,
+                        contentDescription = "Önizleme"
+                    )
+                }
+            }
+        },
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = modifier
     ) { paddingValues ->
@@ -77,6 +95,7 @@ fun PrinterScreen(
                 uiState = uiState,
                 viewModel = viewModel,
                 onOpenWebView = onOpenWebView,
+                onShowPreview = { showPreview = true },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
@@ -87,11 +106,25 @@ fun PrinterScreen(
                 uiState = uiState,
                 viewModel = viewModel,
                 onOpenWebView = onOpenWebView,
+                onShowPreview = { showPreview = true },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
             )
         }
+    }
+    
+    // Önizleme dialog'u
+    if (showPreview && uiState.selectedPrinter != null) {
+        val previewContent = viewModel.getPreviewContent()
+        PrintPreviewDialog(
+            content = previewContent,
+            onDismiss = { showPreview = false },
+            onPrint = {
+                showPreview = false
+                viewModel.printSampleReceipt()
+            }
+        )
     }
 }
 
@@ -103,6 +136,7 @@ fun TabletLayout(
     uiState: PrinterUiState,
     viewModel: PrinterViewModel,
     onOpenWebView: () -> Unit = {},
+    onShowPreview: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -143,7 +177,9 @@ fun TabletLayout(
                 onPrintSampleReceipt = viewModel::printSampleReceipt,
                 onPrintDemo = viewModel::printDemo,
                 onOpenWebView = onOpenWebView,
-                isLoading = uiState.isLoading
+                onPreview = onShowPreview,
+                isLoading = uiState.isLoading,
+                hasSelectedPrinter = uiState.selectedPrinter != null
             )
             
             if (uiState.isLoading) {
@@ -161,6 +197,7 @@ fun PhoneLayout(
     uiState: PrinterUiState,
     viewModel: PrinterViewModel,
     onOpenWebView: () -> Unit = {},
+    onShowPreview: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -184,7 +221,9 @@ fun PhoneLayout(
             onPrintSampleReceipt = viewModel::printSampleReceipt,
             onPrintDemo = viewModel::printDemo,
             onOpenWebView = onOpenWebView,
-            isLoading = uiState.isLoading
+            onPreview = onShowPreview,
+            isLoading = uiState.isLoading,
+            hasSelectedPrinter = uiState.selectedPrinter != null
         )
         
         if (uiState.isLoading) {
@@ -205,7 +244,9 @@ fun PrintButtonsCard(
     onPrintSampleReceipt: () -> Unit,
     onPrintDemo: () -> Unit,
     onOpenWebView: () -> Unit = {},
+    onPreview: () -> Unit = {},
     isLoading: Boolean,
+    hasSelectedPrinter: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     ElevatedCard(
@@ -245,7 +286,7 @@ fun PrintButtonsCard(
             
             Spacer(modifier = Modifier.height(4.dp))
             
-            // WebView butonu - Tek buton
+            // WebView butonu
             Button(
                 onClick = onOpenWebView,
                 enabled = !isLoading,
@@ -269,6 +310,31 @@ fun PrintButtonsCard(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
+            }
+            
+            // Önizleme butonu - Yazıcı seçiliyse göster
+            if (hasSelectedPrinter) {
+                OutlinedButton(
+                    onClick = onPreview,
+                    enabled = true,  // Önizleme için yazıcı bağlantısı gerekmez
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = MaterialTheme.shapes.large,
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        "🔍 Önizleme",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }

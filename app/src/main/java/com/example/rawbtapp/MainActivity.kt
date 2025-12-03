@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import com.example.rawbtapp.deeplink.DeepLinkHandler
 import com.example.rawbtapp.deeplink.DeepLinkResult
-import com.example.rawbtapp.ui.PrinterScreen
+import com.example.rawbtapp.manager.WebsiteManager
+import com.example.rawbtapp.model.Website
+import com.example.rawbtapp.ui.MainScreen
 import com.example.rawbtapp.ui.PrinterViewModel
 import com.example.rawbtapp.ui.theme.RawBTAppTheme
 import com.example.rawbtapp.webview.WebViewActivity
@@ -21,6 +23,7 @@ class MainActivity : ComponentActivity() {
     
     private val viewModel: PrinterViewModel by viewModels()
     private val deepLinkHandler = DeepLinkHandler()
+    private lateinit var websiteManager: WebsiteManager
     
     companion object {
         private const val TAG = "MainActivity"
@@ -30,8 +33,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
+        // WebsiteManager'ı başlat
+        websiteManager = WebsiteManager(this)
+        
         Log.d(TAG, "========================================")
-        Log.d(TAG, "MainActivity onCreate - SAYFA: Ana Yazıcı Ekranı")
+        Log.d(TAG, "MainActivity onCreate - SAYFA: Ana Ekran")
         Log.d(TAG, "========================================")
         Log.d(TAG, "Intent: ${intent?.action}")
         Log.d(TAG, "Intent Data: ${intent?.data}")
@@ -44,15 +50,17 @@ class MainActivity : ComponentActivity() {
         val autoOpen = resources.getBoolean(R.bool.webview_auto_open)
         Log.d(TAG, "WebView auto-open config: $autoOpen")
         if (autoOpen) {
-            Log.d(TAG, "Auto-opening WebView from config")
-            openWebView()
+            Log.d(TAG, "Auto-opening default website")
+            val defaultSite = Website.getDefaultTemplate()
+            openWebsite(defaultSite)
         }
         
         setContent {
             RawBTAppTheme {
-                PrinterScreen(
-                    viewModel = viewModel,
-                    onOpenWebView = { openWebView() },
+                MainScreen(
+                    websiteManager = websiteManager,
+                    printerViewModel = viewModel,
+                    onOpenWebsite = { website -> openWebsite(website) },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -111,15 +119,19 @@ class MainActivity : ComponentActivity() {
     }
     
     /**
-     * WebView'ı aç
+     * Web sitesini aç
      */
-    private fun openWebView() {
+    private fun openWebsite(website: Website) {
         Log.d(TAG, "========================================")
-        Log.d(TAG, "openWebView - WebView Açılıyor")
-        Log.d(TAG, "Hedef Sayfa: WebViewActivity (POS Web Sistemi)")
+        Log.d(TAG, "openWebsite - Web Sitesi Açılıyor")
+        Log.d(TAG, "Site: ${website.name}")
+        Log.d(TAG, "URL: ${website.url}")
+        Log.d(TAG, "Hedef Sayfa: WebViewActivity")
         Log.d(TAG, "========================================")
-        val intent = Intent(this, WebViewActivity::class.java)
+        val intent = Intent(this, WebViewActivity::class.java).apply {
+            putExtra("WEBSITE_NAME", website.name)
+            putExtra("WEBSITE_URL", website.url)
+        }
         startActivity(intent)
     }
-    
 }

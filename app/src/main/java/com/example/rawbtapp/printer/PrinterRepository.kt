@@ -53,6 +53,7 @@ class PrinterRepository {
     
     /**
      * Örnek fiş yazdır
+     * Sadece logo ve footer ile, printer bilgisi olmadan
      */
     suspend fun printSampleReceipt(
         ipAddress: String,
@@ -61,59 +62,69 @@ class PrinterRepository {
         val receiptData = buildEscPosCommand {
             initialize()
             
+            // Logo ekle (eğer aktifse)
+            if (PrintConstants.SHOW_LOGO) {
+                alignCenter()
+                val logoLines = PrintConstants.RECEIPT_LOGO.trimIndent().split("\n")
+                logoLines.forEach { line ->
+                    textLine(line)
+                }
+                newLine(PrintConstants.LOGO_SPACING)
+            }
+            
             // Başlık
             alignCenter()
             doubleTextLine("ÖRNEK FİŞ")
-            textLine("Termal Yazıcı Test")
             newLine()
             
-            // Firma bilgileri
-            textLine("ABC Şirketi Ltd. Şti.")
-            textLine("Atatürk Cad. No:123")
-            textLine("İstanbul / Türkiye")
-            textLine("Tel: 0212 123 45 67")
-            newLine()
-            
-            // Tarih ve fiş no
+            // Tarih
             alignLeft()
-            horizontalLine("=")
+            horizontalLine(PrintConstants.HORIZONTAL_LINE_BOLD_CHAR)
             twoColumnText("Tarih:", getCurrentDateTime())
-            twoColumnText("Fiş No:", "2024-001")
-            horizontalLine("=")
+            horizontalLine(PrintConstants.HORIZONTAL_LINE_BOLD_CHAR)
             newLine()
             
-            // Ürünler
+            // Ürünler (Web'den gelecek içerik burada olacak)
             boldTextLine("ÜRÜNLER")
             horizontalLine()
-            textLine("Ürün 1")
-            twoColumnText("  2 x 10.00 TL", "20.00 TL")
-            newLine()
-            textLine("Ürün 2")
-            twoColumnText("  1 x 15.50 TL", "15.50 TL")
-            newLine()
-            textLine("Ürün 3")
-            twoColumnText("  3 x 8.00 TL", "24.00 TL")
+            twoColumnText("Çay", "15.00 TL")
+            twoColumnText("Kahve", "25.00 TL")
+            twoColumnText("Börek", "30.00 TL")
+            twoColumnText("Çiğ Köfte", "40.00 TL")
             horizontalLine()
             
             // Toplam
             newLine()
             alignRight()
-            boldTextLine("ARA TOPLAM: 59.50 TL")
-            textLine("KDV (%18): 10.71 TL")
-            horizontalLine("=")
-            doubleTextLine("TOPLAM: 70.21 TL")
-            horizontalLine("=")
+            boldTextLine("TOPLAM: 110.00 TL")
+            horizontalLine(PrintConstants.HORIZONTAL_LINE_BOLD_CHAR)
             
-            // Alt bilgi
-            newLine()
-            alignCenter()
-            textLine("Bizi tercih ettiğiniz için")
-            textLine("teşekkür ederiz!")
-            newLine()
-            textLine("www.orneksite.com")
+            // Footer ekle (eğer aktifse)
+            if (PrintConstants.SHOW_FOOTER) {
+                newLine(PrintConstants.FOOTER_TOP_SPACING)
+                horizontalLine(PrintConstants.HORIZONTAL_LINE_BOLD_CHAR)
+                alignCenter()
+                
+                val footerLines = PrintConstants.FOOTER_THANK_YOU.split("\n")
+                footerLines.forEach { line ->
+                    textLine(line)
+                }
+                
+                if (PrintConstants.FOOTER_WEBSITE.isNotEmpty()) {
+                    textLine(PrintConstants.FOOTER_WEBSITE)
+                }
+                if (PrintConstants.FOOTER_PHONE.isNotEmpty()) {
+                    textLine(PrintConstants.FOOTER_PHONE)
+                }
+                if (PrintConstants.FOOTER_ADDRESS.isNotEmpty()) {
+                    textLine(PrintConstants.FOOTER_ADDRESS)
+                }
+                
+                horizontalLine(PrintConstants.HORIZONTAL_LINE_BOLD_CHAR)
+            }
             
             // Kağıt besle ve kes
-            feedPaper(4)
+            feedPaper(PrintConstants.FOOTER_BOTTOM_SPACING)
             cutPaper()
         }
         

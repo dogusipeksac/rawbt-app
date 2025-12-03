@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,6 +46,7 @@ class PrinterSelectionActivity : ComponentActivity() {
         const val RESULT_PRINTER_NUMBER = "printer_number"
         const val RESULT_PRINTER_IP = "printer_ip"
         const val RESULT_PRINTER_PORT = "printer_port"
+        const val ACTION_PREVIEW = "action_preview"
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,10 +65,15 @@ class PrinterSelectionActivity : ComponentActivity() {
             RawBTAppTheme {
                 PrinterSelectionScreen(
                     documentTitle = documentTitle,
+                    htmlContent = htmlContent,
                     printerManager = printerManager,
                     onPrinterSelected = { printer ->
                         Log.d(TAG, "Yazıcı seçildi: ${printer.getDisplayName()}")
                         returnPrinterResult(printer)
+                    },
+                    onPreview = {
+                        Log.d(TAG, "Önizleme istendi")
+                        returnPreviewResult()
                     },
                     onCancel = {
                         Log.d(TAG, "İptal edildi")
@@ -88,14 +96,24 @@ class PrinterSelectionActivity : ComponentActivity() {
         setResult(Activity.RESULT_OK, resultIntent)
         finish()
     }
+    
+    private fun returnPreviewResult() {
+        val resultIntent = Intent().apply {
+            putExtra(ACTION_PREVIEW, true)
+        }
+        setResult(Activity.RESULT_OK, resultIntent)
+        finish()
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrinterSelectionScreen(
     documentTitle: String,
+    htmlContent: String,
     printerManager: PrinterManager,
     onPrinterSelected: (Printer) -> Unit,
+    onPreview: () -> Unit,
     onCancel: () -> Unit
 ) {
     var printers by remember { mutableStateOf(printerManager.getAllPrinters()) }
@@ -190,6 +208,28 @@ fun PrinterSelectionScreen(
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                 )
                             }
+                        }
+                        
+                        // Önizleme butonu - Her zaman görünür
+                        OutlinedButton(
+                            onClick = onPreview,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            shape = MaterialTheme.shapes.large,
+                            border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                "🔍 Önizleme",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                         
                         // Yazdır butonu

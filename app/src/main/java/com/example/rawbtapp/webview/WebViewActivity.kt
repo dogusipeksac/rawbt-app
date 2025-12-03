@@ -77,27 +77,39 @@ class WebViewActivity : ComponentActivity() {
     ) { result ->
         if (result.resultCode == RESULT_OK) {
             result.data?.let { data ->
-                val printerName = data.getStringExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_NAME) ?: ""
-                val printerNumber = data.getStringExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_NUMBER) ?: "1"
-                val printerIp = data.getStringExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_IP) ?: ""
-                val printerPort = data.getIntExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_PORT, 9100)
+                // Önizleme mi yoksa yazdırma mı?
+                val isPreview = data.getBooleanExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.ACTION_PREVIEW, false)
+                
+                if (isPreview) {
+                    // Önizleme istendi
+                    Log.d(TAG, "Önizleme istendi")
+                    if (pendingHtmlContent != null) {
+                        showPrintPreview(pendingHtmlContent!!, pendingDocumentTitle ?: "Belge")
+                    }
+                } else {
+                    // Yazdırma istendi
+                    val printerName = data.getStringExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_NAME) ?: ""
+                    val printerNumber = data.getStringExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_NUMBER) ?: "1"
+                    val printerIp = data.getStringExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_IP) ?: ""
+                    val printerPort = data.getIntExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_PORT, 9100)
 
-                Log.d(TAG, "Yazıcı seçildi: #$printerNumber - $printerName")
+                    Log.d(TAG, "Yazıcı seçildi: #$printerNumber - $printerName")
 
-                // Printer objesi oluştur
-                val printer = Printer(
-                    id = "",
-                    name = printerName,
-                    number = printerNumber,
-                    ipAddress = printerIp,
-                    port = printerPort
-                )
+                    // Printer objesi oluştur
+                    val printer = Printer(
+                        id = "",
+                        name = printerName,
+                        number = printerNumber,
+                        ipAddress = printerIp,
+                        port = printerPort
+                    )
 
-                // Pending data varsa yazdır
-                if (pendingHtmlContent != null && pendingDocumentTitle != null) {
-                    printWithSelectedPrinter(printer, pendingHtmlContent!!, pendingDocumentTitle!!)
-                    pendingHtmlContent = null
-                    pendingDocumentTitle = null
+                    // Pending data varsa yazdır
+                    if (pendingHtmlContent != null && pendingDocumentTitle != null) {
+                        printWithSelectedPrinter(printer, pendingHtmlContent!!, pendingDocumentTitle!!)
+                        pendingHtmlContent = null
+                        pendingDocumentTitle = null
+                    }
                 }
             }
         } else {
@@ -635,8 +647,8 @@ class WebViewActivity : ComponentActivity() {
                     Log.d(TAG, "HTML content length: ${html.length}")
                     Log.d(TAG, "CSS path: $css")
                     Log.d(TAG, "Title: $title")
-                    Log.d(TAG, "HTML Preview (first 500 chars):")
-                    Log.d(TAG, html.take(500))
+                    Log.d(TAG, "HTML Preview")
+                    Log.d(TAG, html)
 
                     // Native printer dialog ile yazdır
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
@@ -700,17 +712,16 @@ class WebViewActivity : ComponentActivity() {
     private fun printWithSelectedPrinter(printer: Printer, htmlContent: String, documentTitle: String) {
         Log.d(TAG, "printWithSelectedPrinter - ${printer.getDisplayName()}")
 
-        // HTML'e yazıcı bilgisini ekle
-        val htmlWithPrinterInfo = addPrinterInfoToHtml(htmlContent, printer)
-
         // Direkt WiFi yazıcıya gönder (native dialog yok)
+        // Printer bilgisi eklenmez, sadece web'den gelen içerik + logo + footer
         lifecycleScope.launch {
             try {
                 Log.d(TAG, "Yazdırma başlatılıyor: ${printer.ipAddress}:${printer.port}")
 
                 // HTML'i ESC/POS komutlarına çevir ve gönder
+                // Sadece web'den gelen içerik kullanılır
                 val success = sendHtmlToPrinter(
-                    htmlContent = htmlWithPrinterInfo,
+                    htmlContent = htmlContent,
                     ipAddress = printer.ipAddress,
                     port = printer.port
                 )
@@ -1529,6 +1540,77 @@ class WebViewActivity : ComponentActivity() {
         }
 
         Log.d(TAG, "Note: For window.print() support, use JavaScript interface triggerNativePrint()")
+    }
+
+    /**
+     * Önizleme göster - Android Print Dialog kullanarak
+     */
+    @RequiresApi(Build.VERSION_CODES.KITKAT)
+    private fun showPrintPreview(htmlContent: String, title: String) {
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "showPrintPreview - Önizleme Gösteriliyor")
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "Title: $title")
+        Log.d(TAG, "HTML length: ${htmlContent.length}")
+        
+        try {
+            // Geçici WebView oluştur
+            val previewWebView = WebView(this).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+            }
+            
+            // HTML içeriğini yükle - Basit wrapper
+            val fullHtml = """
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>$title</title>
+                    <style>
+                        body {
+                            margin: ${PrintConstants.WEB_CONTENT_TOP_SPACING}em 0 ${PrintConstants.WEB_CONTENT_BOTTOM_SPACING}em 0;
+                            padding: 0;
+                            font-family: Arial, sans-serif;
+                        }
+                    </style>
+                </head>
+                <body>
+                    $htmlContent
+                </body>
+                </html>
+            """.trimIndent()
+            
+            previewWebView.loadDataWithBaseURL(null, fullHtml, "text/html", "UTF-8", null)
+            
+            // WebView yüklendikten sonra print dialog'u aç
+            previewWebView.webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    Log.d(TAG, "Preview WebView loaded, opening print dialog...")
+                    
+                    // Android Print Dialog'u aç
+                    val printManager = getSystemService(Context.PRINT_SERVICE) as PrintManager
+                    val printAdapter = previewWebView.createPrintDocumentAdapter(title)
+                    
+                    printManager.print(
+                        title,
+                        printAdapter,
+                        PrintAttributes.Builder()
+                            .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+                            .build()
+                    )
+                    
+                    Log.d(TAG, "✓ Print preview dialog opened")
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing print preview", e)
+            Toast.makeText(this, "Önizleme hatası: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     @Deprecated("Deprecated in Java")

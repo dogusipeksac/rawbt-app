@@ -15,21 +15,33 @@ object PrintConstants {
      * Değiştirmek için bu metni düzenleyin
      */
     const val RECEIPT_LOGO = """
-    ╔════════════════════════════╗
-    ║   7 DAYS RESTAURANT & CAFE ║
-    ║      POS SİSTEMİ           ║
-    ╚════════════════════════════╝
+         ___
+        /   \
+       |  7  |
+        \___/
+         DAYS
     """
     
     /**
      * Logo gösterilsin mi?
+     * NOT: Generic mode'da logo kullanılmaz, sadece web içeriği basılır
      */
-    const val SHOW_LOGO = true
+    const val SHOW_LOGO = false
     
     /**
      * Logo'dan sonra kaç satır boşluk bırakılsın
      */
     const val LOGO_SPACING = 1
+    
+    /**
+     * Web içeriğinden önce kaç satır boşluk bırakılsın
+     */
+    const val WEB_CONTENT_TOP_SPACING = 2
+    
+    /**
+     * Web içeriğinden sonra kaç satır boşluk bırakılsın
+     */
+    const val WEB_CONTENT_BOTTOM_SPACING = 3
     
     // ============================================
     // FOOTER (ALT BİLGİ) AYARLARI
@@ -57,8 +69,9 @@ object PrintConstants {
     
     /**
      * Footer gösterilsin mi?
+     * NOT: Generic mode'da footer kullanılmaz, sadece web içeriği basılır
      */
-    const val SHOW_FOOTER = true
+    const val SHOW_FOOTER = false
     
     /**
      * Footer'dan önce kaç satır boşluk bırakılsın

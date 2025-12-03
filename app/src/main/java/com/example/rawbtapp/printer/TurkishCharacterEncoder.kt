@@ -17,15 +17,29 @@ object TurkishCharacterEncoder {
      */
     fun encodeForPrinter(text: String): ByteArray {
         return try {
-            // Önce Windows-1254 ile dene (Türkçe için en uygun)
-            text.toByteArray(Charset.forName("Windows-1254"))
+            Log.d(TAG, "Encoding text for printer: ${text.take(50)}...")
+            
+            // Türkçe karakterleri kontrol et
+            val turkishChars = "ÇçĞğİıÖöŞşÜü"
+            val hasTurkish = text.any { it in turkishChars }
+            
+            if (hasTurkish) {
+                Log.d(TAG, "Turkish characters detected, using Windows-1254")
+            }
+            
+            // Windows-1254 ile encode et (Türkçe için en uygun)
+            val encoded = text.toByteArray(Charset.forName("Windows-1254"))
+            Log.d(TAG, "✓ Successfully encoded ${encoded.size} bytes with Windows-1254")
+            encoded
         } catch (e: Exception) {
-            Log.w(TAG, "Windows-1254 encoding failed, trying ISO-8859-9", e)
+            Log.e(TAG, "Windows-1254 encoding failed, trying ISO-8859-9", e)
             try {
                 // ISO-8859-9 (Latin-5, Turkish) dene
-                text.toByteArray(Charset.forName("ISO-8859-9"))
+                val encoded = text.toByteArray(Charset.forName("ISO-8859-9"))
+                Log.d(TAG, "✓ Successfully encoded ${encoded.size} bytes with ISO-8859-9")
+                encoded
             } catch (e2: Exception) {
-                Log.w(TAG, "ISO-8859-9 encoding failed, using UTF-8", e2)
+                Log.e(TAG, "ISO-8859-9 encoding failed, using UTF-8", e2)
                 // Son çare UTF-8
                 text.toByteArray(Charsets.UTF_8)
             }
