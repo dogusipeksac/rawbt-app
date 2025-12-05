@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,6 +23,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.rawbtapp.model.Printer
 
@@ -155,7 +158,7 @@ fun TabletLayout(
             PrinterManagementCard(
                 savedPrinters = uiState.savedPrinters,
                 selectedPrinter = uiState.selectedPrinter,
-                onAddPrinter = viewModel::addPrinter,
+                viewModel = viewModel,
                 onDeletePrinter = viewModel::deletePrinter,
                 onSelectPrinter = viewModel::selectPrinter,
                 isEnabled = !uiState.isLoading
@@ -209,7 +212,7 @@ fun PhoneLayout(
         PrinterManagementCard(
             savedPrinters = uiState.savedPrinters,
             selectedPrinter = uiState.selectedPrinter,
-            onAddPrinter = viewModel::addPrinter,
+            viewModel = viewModel,
             onDeletePrinter = viewModel::deletePrinter,
             onSelectPrinter = viewModel::selectPrinter,
             isEnabled = !uiState.isLoading
@@ -330,7 +333,7 @@ fun PrintButtonsCard(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        "🔍 Önizleme",
+                        "Önizleme",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -380,10 +383,11 @@ fun LoadingIndicator(
 fun PrinterManagementCard(
     savedPrinters: List<Printer>,
     selectedPrinter: Printer?,
-    onAddPrinter: (String, String, String, String) -> Boolean,
+    viewModel: PrinterViewModel,
     onDeletePrinter: (String) -> Unit,
     onSelectPrinter: (Printer) -> Unit,
     isEnabled: Boolean,
+    isSelectable: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -480,7 +484,9 @@ fun PrinterManagementCard(
                             isSelected = printer.id == selectedPrinter?.id,
                             onSelect = { onSelectPrinter(printer) },
                             onDelete = { onDeletePrinter(printer.id) },
-                            isEnabled = isEnabled
+                            onTest = { p, text, type -> viewModel.printTestForPrinter(p, text, type) },
+                            isEnabled = isEnabled,
+                            isSelectable = isSelectable
                         )
                     }
                 }
@@ -491,8 +497,8 @@ fun PrinterManagementCard(
     if (showAddDialog) {
         AddPrinterDialog(
             onDismiss = { showAddDialog = false },
-            onAdd = { name, number, ip, port ->
-                val success = onAddPrinter(name, number, ip, port)
+            onAdd = { name, number, ip, port, cutPaper, cutFeedLines, charsetEncoding, cancelTurkishChars ->
+                val success = viewModel.addPrinter(name, number, ip, port, cutPaper, cutFeedLines, charsetEncoding, cancelTurkishChars)
                 if (success) {
                     showAddDialog = false
                 }
@@ -510,9 +516,14 @@ fun PrinterListItem(
     isSelected: Boolean,
     onSelect: () -> Unit,
     onDelete: () -> Unit,
+    onTest: (Printer, String, String) -> Unit,
     isEnabled: Boolean,
+    isSelectable: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showTestDialog by remember { mutableStateOf(false) }
+    
     val borderModifier = if (isSelected) {
         Modifier.border(
             width = 2.dp,
@@ -525,7 +536,7 @@ fun PrinterListItem(
         modifier = modifier
             .fillMaxWidth()
             .then(borderModifier)
-            .clickable(enabled = isEnabled) { onSelect() },
+            .then(if (isSelectable) Modifier.clickable(enabled = isEnabled) { onSelect() } else Modifier),
         colors = CardDefaults.elevatedCardColors(
             containerColor = if (isSelected) 
                 MaterialTheme.colorScheme.primaryContainer 
@@ -613,33 +624,115 @@ fun PrinterListItem(
                     )
                 }
             }
-            
-            IconButton(
-                onClick = onDelete,
-                enabled = isEnabled
+
+            // Test ve sil butonları
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Sil",
-                    tint = MaterialTheme.colorScheme.error
+                // Test butonu
+                IconButton(
+                    onClick = { showTestDialog = true },
+                    enabled = isEnabled
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Test Yazdır",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                // Sil butonu
+                IconButton(
+                    onClick = { showDeleteConfirm = true },
+                    enabled = isEnabled
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Sil",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            
+            // Test Dialog
+            if (showTestDialog) {
+                PrinterTestDialog(
+                    printer = printer,
+                    onDismiss = { showTestDialog = false },
+                    onSimpleTest = { text ->
+                        onTest(printer, text, "simple")
+                        showTestDialog = false
+                    },
+                    onFullTest = { text ->
+                        onTest(printer, text, "full")
+                        showTestDialog = false
+                    },
+                    onDetailedTest = { text ->
+                        onTest(printer, text, "detailed")
+                        showTestDialog = false
+                    }
                 )
             }
         }
+    }
+    
+    // Silme onay dialog'u
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = {
+                Text(
+                    "Yazıcıyı Sil",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "\"${printer.name}\" yazıcısını silmek istediğinizden emin misiniz?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete()
+                        showDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Sil")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("İptal")
+                }
+            }
+        )
     }
 }
 
 /**
  * Yazıcı ekleme dialog'u
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddPrinterDialog(
     onDismiss: () -> Unit,
-    onAdd: (name: String, number: String, ipAddress: String, port: String) -> Unit
+    onAdd: (name: String, number: String, ipAddress: String, port: String, cutPaper: Boolean, cutFeedLines: Int, charsetEncoding: String, cancelTurkishChars: Boolean) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var number by remember { mutableStateOf("") }
     var ipAddress by remember { mutableStateOf("192.168.1.") }
     var port by remember { mutableStateOf("9100") }
+    var cutPaper by remember { mutableStateOf(true) }
+    var cutFeedLines by remember { mutableStateOf(3) }
+    var charsetEncoding by remember { mutableStateOf(com.example.rawbtapp.printer.CharsetEncodingOptions.getDefaultValue()) }
+    var expandedCharsetDropdown by remember { mutableStateOf(false) }
+    var cancelTurkishChars by remember { mutableStateOf(false) }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -719,11 +812,149 @@ fun AddPrinterDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.medium
                 )
+
+                // Kağıt kesme switch
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Kağıt Kesme",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (cutPaper) "Aktif" else "Kapalı",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = cutPaper,
+                        onCheckedChange = { cutPaper = it }
+                    )
+                }
+
+                // Kesme boşluğu slider
+                if (cutPaper) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Kesme Öncesi Boşluk: $cutFeedLines satır",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Slider(
+                            value = cutFeedLines.toFloat(),
+                            onValueChange = { cutFeedLines = it.toInt() },
+                            valueRange = 0f..10f,
+                            steps = 9,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "0",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "10",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                
+                // Karakter seti ve encoding seçimi
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Karakter Seti / Encoding",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    ExposedDropdownMenuBox(
+                        expanded = expandedCharsetDropdown,
+                        onExpandedChange = { expandedCharsetDropdown = !expandedCharsetDropdown }
+                    ) {
+                        OutlinedTextField(
+                            value = com.example.rawbtapp.printer.CharsetEncodingOptions.getOptionByValue(charsetEncoding)?.displayName ?: charsetEncoding,
+                            onValueChange = { },
+                            readOnly = true,
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCharsetDropdown)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            shape = MaterialTheme.shapes.medium
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expandedCharsetDropdown,
+                            onDismissRequest = { expandedCharsetDropdown = false }
+                        ) {
+                            com.example.rawbtapp.printer.CharsetEncodingOptions.options.forEach { option ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(
+                                                text = option.displayName,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                text = option.description,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        charsetEncoding = option.value
+                                        expandedCharsetDropdown = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // Türkçe karakter iptal switch
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Türkçe Karakter İptal Et",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "İ→I, ı→i, Ö→O, ö→o, Ü→U, ü→u, Ş→S, ş→s, Ğ→G, ğ→g",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = cancelTurkishChars,
+                        onCheckedChange = { cancelTurkishChars = it }
+                    )
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onAdd(name, number, ipAddress, port) },
+                onClick = { onAdd(name, number, ipAddress, port, cutPaper, cutFeedLines, charsetEncoding, cancelTurkishChars) },
                 shape = MaterialTheme.shapes.medium
             ) {
                 Text("Ekle", style = MaterialTheme.typography.labelLarge)

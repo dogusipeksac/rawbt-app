@@ -10,7 +10,11 @@ data class Printer(
     val name: String,
     val number: String,
     val ipAddress: String,
-    val port: Int
+    val port: Int,
+    val cutPaper: Boolean = true,  // Kağıt kesme aktif mi?
+    val cutFeedLines: Int = 3,  // Kesme öncesi boşluk satır sayısı (0-10 arası)
+    val charsetEncoding: String = "PC857_CP857",  // Karakter seti ve encoding kombinasyonu
+    val cancelTurkishChars: Boolean = false  // Türkçe karakterleri İngilizce karşılıklarına çevir
 ) {
     companion object {
         /**
@@ -23,7 +27,11 @@ data class Printer(
                 name = jsonObject.getString("name"),
                 number = jsonObject.getString("number"),
                 ipAddress = jsonObject.getString("ipAddress"),
-                port = jsonObject.getInt("port")
+                port = jsonObject.getInt("port"),
+                cutPaper = jsonObject.optBoolean("cutPaper", true),
+                cutFeedLines = jsonObject.optInt("cutFeedLines", 3),
+                charsetEncoding = jsonObject.optString("charsetEncoding", "PC857_CP857"),
+                cancelTurkishChars = jsonObject.optBoolean("cancelTurkishChars", false)
             )
         }
     }
@@ -38,6 +46,10 @@ data class Printer(
         jsonObject.put("number", number)
         jsonObject.put("ipAddress", ipAddress)
         jsonObject.put("port", port)
+        jsonObject.put("cutPaper", cutPaper)
+        jsonObject.put("cutFeedLines", cutFeedLines)
+        jsonObject.put("charsetEncoding", charsetEncoding)
+        jsonObject.put("cancelTurkishChars", cancelTurkishChars)
         return jsonObject.toString()
     }
     

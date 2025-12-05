@@ -135,14 +135,21 @@ class PrinterClient {
      */
     suspend fun printTest(
         ipAddress: String,
-        port: Int = DEFAULT_PORT
+        port: Int = DEFAULT_PORT,
+        cutPaper: Boolean = true,
+        cutFeedLines: Int = 3,
+        charsetEncoding: String = "PC857_CP857",
+        cancelTurkishChars: Boolean = false
     ): PrintResult {
         Log.d(TAG, "========================================")
         Log.d(TAG, "printTest - Test Sayfası Hazırlanıyor")
         Log.d(TAG, "========================================")
         Log.d(TAG, "IP: $ipAddress, Port: $port")
+        Log.d(TAG, "Cut paper: $cutPaper, Feed lines: $cutFeedLines")
+        Log.d(TAG, "Charset Encoding: $charsetEncoding")
+        Log.d(TAG, "Cancel Turkish Chars: $cancelTurkishChars")
         
-        val testData = buildEscPosCommand {
+        val testData = buildEscPosCommand(charsetEncoding, cancelTurkishChars) {
             initialize()
             alignCenter()
             doubleTextLine("TEST YAZDIR")
@@ -157,8 +164,12 @@ class PrinterClient {
             newLine(2)
             alignCenter()
             textLine("Test Başarılı!")
-            feedPaper(3)
-            cutPaper()
+            if (cutPaper) {
+                feedPaper(cutFeedLines)
+                cutPaper()
+            } else {
+                feedPaper(3)
+            }
         }
         
         return print(ipAddress, port, testData)

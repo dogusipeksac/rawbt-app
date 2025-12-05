@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.URL
 import java.net.HttpURLConnection
+import java.nio.charset.Charset
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,6 +27,7 @@ import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -38,6 +40,7 @@ import com.example.rawbtapp.R
 import com.example.rawbtapp.printer.PrinterManager
 import com.example.rawbtapp.printer.PrintConstants
 import com.example.rawbtapp.printer.TurkishCharacterEncoder
+import com.example.rawbtapp.printer.EscPosCommands
 import org.json.JSONException
 import android.util.Log
 import android.webkit.WebSettings
@@ -90,28 +93,21 @@ class WebViewActivity : ComponentActivity() {
                         showPrintPreview(pendingHtmlContent!!, pendingDocumentTitle ?: "Belge")
                     }
                 } else {
-                    // Yazdırma istendi
-                    val printerName = data.getStringExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_NAME) ?: ""
-                    val printerNumber = data.getStringExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_NUMBER) ?: "1"
-                    val printerIp = data.getStringExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_IP) ?: ""
-                    val printerPort = data.getIntExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_PORT, 9100)
+                    // Yazdırma istendi - Birden fazla printer desteği
+                    val printerIds = data.getStringArrayListExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.RESULT_PRINTER_IDS)
 
-                    Log.d(TAG, "Yazıcı seçildi: #$printerNumber - $printerName")
+                    if (printerIds != null && printerIds.isNotEmpty()) {
+                        Log.d(TAG, "${printerIds.size} yazıcı seçildi")
 
-                    // Printer objesi oluştur
-                    val printer = Printer(
-                        id = "",
-                        name = printerName,
-                        number = printerNumber,
-                        ipAddress = printerIp,
-                        port = printerPort
-                    )
+                        val printers = printerIds.mapNotNull { id ->
+                            printerManager.getPrinterById(id)
+                        }
 
-                    // Pending data varsa yazdır
-                    if (pendingHtmlContent != null && pendingDocumentTitle != null) {
-                        printWithSelectedPrinter(printer, pendingHtmlContent!!, pendingDocumentTitle!!)
+                        if (printers.isNotEmpty() && pendingHtmlContent != null && pendingDocumentTitle != null) {
+                            printToMultiplePrinters(printers, pendingHtmlContent!!, pendingDocumentTitle!!)
                         pendingHtmlContent = null
                         pendingDocumentTitle = null
+                        }
                     }
                 }
             }
@@ -155,6 +151,25 @@ class WebViewActivity : ComponentActivity() {
                     onWebViewCreated = { wv ->
                         webView = wv
                         setupWebView(wv)
+                    },
+                    onSettingsClick = {
+                        openPrinterScreen()
+                    },
+                    showPreviewDialog = _showPreviewDialog.value,
+                    previewContent = _previewContent.value,
+                    previewTitle = _previewTitle.value,
+                    onPreviewDismiss = {
+                        _showPreviewDialog.value = false
+                    },
+                    onPreviewPrint = {
+                        _showPreviewDialog.value = false
+                        // Preview'dan yazdır butonuna basıldığında printer seçim ekranını aç
+                        if (pendingHtmlContent != null && pendingDocumentTitle != null) {
+                            val intent = Intent(this, com.example.rawbtapp.printer.PrinterSelectionActivity::class.java)
+                            intent.putExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.EXTRA_HTML_CONTENT, pendingHtmlContent)
+                            intent.putExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.EXTRA_DOCUMENT_TITLE, pendingDocumentTitle)
+                            printerSelectionLauncher.launch(intent)
+                        }
                     }
                 )
             }
@@ -237,11 +252,23 @@ class WebViewActivity : ComponentActivity() {
                 loadsImagesAutomatically = true
                 mediaPlaybackRequiresUserGesture = false
 
-                Log.d(TAG, "WebView settings: JS=$jsEnabled, DOM=$domStorageConfig, FileAccess=$fileAccessEnabled")
-                Log.d(TAG, "Viewport: useWideViewPort=true, loadWithOverviewMode=true, initialScale=100")
+                // Layout ve rendering iyileştirmeleri
+                layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
+
+                Log.d(
+                    TAG,
+                    "WebView settings: JS=$jsEnabled, DOM=$domStorageConfig, FileAccess=$fileAccessEnabled"
+                )
+                Log.d(
+                    TAG,
+                    "Viewport: useWideViewPort=true, loadWithOverviewMode=true, initialScale=100"
+                )
                 Log.d(TAG, "Original User Agent: $originalUA")
                 Log.d(TAG, "Modified User Agent: $userAgentString")
-                Log.d(TAG, "Device Type: ${if (originalUA.contains("Mobile")) "Mobile" else "Tablet"}")
+                Log.d(
+                    TAG,
+                    "Device Type: ${if (originalUA.contains("Mobile")) "Mobile" else "Tablet"}"
+                )
             }
 
             // JavaScript Interface ekle
@@ -269,7 +296,8 @@ class WebViewActivity : ComponentActivity() {
 
                     // PDF kontrolü
                     if (url.endsWith(".pdf", ignoreCase = true) ||
-                        request.requestHeaders["Accept"]?.contains("application/pdf") == true) {
+                        request.requestHeaders["Accept"]?.contains("application/pdf") == true
+                    ) {
                         Log.d(TAG, "========================================")
                         Log.d(TAG, "PDF Tespit Edildi - Otomatik Yazdırma")
                         Log.d(TAG, "========================================")
@@ -299,265 +327,93 @@ class WebViewActivity : ComponentActivity() {
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    Log.d(TAG, "Page finished loading: $url")
 
-                    // Tablet için mobil mod zorla + CSS/Layout fix
-                    webView.evaluateJavascript("""
+                    // DOMContentLoaded event listener ekleyin
+                    val setupScript = """
         (function() {
-            console.log('=== WebView Tablet Fix Starting ===');
-            console.log('Window dimensions:', window.innerWidth, 'x', window.innerHeight);
-            console.log('Screen dimensions:', screen.width, 'x', screen.height);
-            console.log('Device pixel ratio:', window.devicePixelRatio);
-            
-            // Viewport meta tag ekle/güncelle
-            var viewport = document.querySelector('meta[name=viewport]');
-            if (!viewport) {
-                viewport = document.createElement('meta');
-                viewport.name = 'viewport';
-                document.head.appendChild(viewport);
-            }
-            viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
-            console.log('✓ Viewport updated');
-            
-            // Touch event desteğini zorla
-            if (!('ontouchstart' in window)) {
-                window.ontouchstart = function() {};
-            }
-            console.log('✓ Touch events enabled');
-            
-            // Mobil cihaz olduğumuzu belirt
-            window.isMobile = true;
-            window.isTablet = true;
-            
-            // Screen size override (tablet'i telefon gibi göster)
-            Object.defineProperty(window.screen, 'width', { 
-                get: function() { return 412; } 
-            });
-            Object.defineProperty(window.screen, 'height', { 
-                get: function() { return 915; } 
-            });
-            console.log('✓ Screen size overridden to mobile');
-            
-            // BOOTSTRAP FIX: Grid layout'u düzelt
-            // col-md-12 d-flex flex-row'u grid yapan CSS
-            var style = document.createElement('style');
-            style.id = 'webview-tablet-fix';
-            style.innerHTML = `
-                /* GRID LAYOUT FIX */
-                
-                /* Ana wrapper'ı grid yapan CSS */
-                .col-md-12.d-flex.flex-row,
-                .col-md-12.d-flex.flex-row.flex-wrap {
-                    display: grid !important;
-                    grid-template-columns: repeat(5, 1fr) !important;
-                    gap: 12px !important;
-                    width: 100% !important;
-                    max-width: 100% !important;
-                    padding: 12px !important;
-                }
-                
-                /* Card'ları grid item yapan CSS */
-                .col-md-12.d-flex.flex-row .card,
-                .col-md-12.d-flex.flex-row.flex-wrap .card {
-                    display: block !important;
-                    width: 100% !important;
-                    max-width: 100% !important;
-                    height: auto !important;
-                    margin: 0 !important;
-                }
-                
-                /* Tüm card'ları düzelt */
-                .card {
-                    display: block !important;
-                    width: 100% !important;
-                    max-width: 100% !important;
-                    margin-bottom: 0 !important;
-                    flex: none !important;
-                }
-                
-                /* List item'leri düzelt */
-                .list-item {
-                    display: block !important;
-                    width: 100% !important;
-                    max-width: 100% !important;
-                    margin-bottom: 0 !important;
-                }
-                
-                /* Ürün görülsün */
-                [class*="product"],
-                [class*="Product"],
-                [class*="item"],
-                [class*="Item"],
-                [class*="list"],
-                [class*="List"] {
-                    display: block !important;
+            var css = `
+                .card-body, .row, .col-md-12, .card, .list-item, [class*="list-item"] {
                     visibility: visible !important;
                     opacity: 1 !important;
-                    height: auto !important;
-                    overflow: visible !important;
-                }
-                
-                /* Hidden sınıflarını override et */
-                .hidden,
-                .d-none,
-                [hidden] {
-                    display: block !important;
-                    visibility: visible !important;
-                    opacity: 1 !important;
-                }
-                
-                /* Responsive grid */
-                @media screen and (max-width: 600px) {
-                    .col-md-12.d-flex.flex-row,
-                    .col-md-12.d-flex.flex-row.flex-wrap {
-                        grid-template-columns: repeat(2, 1fr) !important;
-                    }
-                }
-                
-                body {
-                    max-width: 100vw !important;
-                    overflow-x: hidden !important;
-                    width: 100% !important;
-                }
-                
-                html {
-                    max-width: 100vw !important;
-                    overflow-x: hidden !important;
-                    width: 100% !important;
                 }
             `;
+            var style = document.createElement('style');
+            style.type = 'text/css';
+            style.appendChild(document.createTextNode(css));
             document.head.appendChild(style);
-            console.log('✓ CSS media query override injected');
-            
-            // INLINE STYLE OVERRIDE - CSS'in çalışmadığı durumlarda
-            setTimeout(function() {
-                console.log('--- Inline style override starting ---');
-                
-                // Ana wrapper'ı bul ve grid yapan CSS uygula
-                var mainWrapper = document.querySelector('.col-md-12.d-flex.flex-row');
-                if (mainWrapper) {
-                    console.log('Found main wrapper, applying grid styles');
-                    mainWrapper.style.display = 'grid';
-                    mainWrapper.style.gridTemplateColumns = 'repeat(5, 1fr)';
-                    mainWrapper.style.gap = '12px';
-                    mainWrapper.style.width = '100%';
-                    mainWrapper.style.maxWidth = '100%';
-                    mainWrapper.style.padding = '12px';
-                }
-                
-                // Tüm card'ları grid item yapan CSS uygula
-                var cards = document.querySelectorAll('.card');
-                cards.forEach(function(el) {
-                    el.style.display = 'block';
-                    el.style.width = '100%';
-                    el.style.maxWidth = '100%';
-                    el.style.height = 'auto';
-                    el.style.margin = '0';
-                    el.style.flex = 'none';
-                });
-                
-                // Tüm list-item'leri düzelt
-                var listItems = document.querySelectorAll('.list-item');
-                listItems.forEach(function(el) {
-                    el.style.display = 'block';
-                    el.style.width = '100%';
-                    el.style.maxWidth = '100%';
-                    el.style.margin = '0';
-                });
-                
-                console.log('✓ Inline styles applied (grid layout)');
-            }, 300);
-            
-            // JavaScript conditional rendering fix
-            // matchMedia'yı override et (tablet'i mobil gibi göster)
-            var originalMatchMedia = window.matchMedia;
-            window.matchMedia = function(query) {
-                console.log('matchMedia called with:', query);
-                
-                // Tablet breakpoint'lerini mobil olarak döndür
-                if (query.includes('min-width') && 
-                    (query.includes('768px') || query.includes('600px') || 
-                     query.includes('1024px') || query.includes('900px'))) {
-                    console.log('→ Overriding to mobile (false)');
-                    return { matches: false, media: query };
-                }
-                
-                // Mobil breakpoint'leri true döndür
-                if (query.includes('max-width') && 
-                    (query.includes('767px') || query.includes('599px'))) {
-                    console.log('→ Overriding to mobile (true)');
-                    return { matches: true, media: query };
-                }
-                
-                return originalMatchMedia.call(window, query);
-            };
-            console.log('✓ matchMedia overridden');
-            
-            // DOM'da gizli ürünleri bul ve göster
-            setTimeout(function() {
-                console.log('--- Searching for hidden products ---');
-                
-                // Yaygın ürün selector'ları
-                var selectors = [
-                    '[class*="product"]',
-                    '[class*="Product"]',
-                    '[class*="item"]',
-                    '[class*="Item"]',
-                    '[class*="card"]',
-                    '[class*="Card"]',
-                    '[data-product]',
-                    '[data-item]'
-                ];
-                
-                selectors.forEach(function(selector) {
-                    var elements = document.querySelectorAll(selector);
-                    console.log('Found', elements.length, 'elements for:', selector);
-                    
-                    elements.forEach(function(el) {
-                        var computed = window.getComputedStyle(el);
-                        if (computed.display === 'none' || 
-                            computed.visibility === 'hidden' ||
-                            computed.opacity === '0') {
-                            console.log('→ Showing hidden element:', el.className);
-                            el.style.display = 'block';
-                            el.style.visibility = 'visible';
-                            el.style.opacity = '1';
-                        }
-                    });
-                });
-                
-                console.log('✓ Hidden products revealed');
-            }, 500);
-            
-            console.log('=== WebView Tablet Fix Complete ===');
-        })();
-    """.trimIndent(), null)}
 
-                override fun onReceivedError(
-                    view: WebView?,
-                    request: WebResourceRequest?,
-                    error: android.webkit.WebResourceError?
-                ) {
-                    super.onReceivedError(view, request, error)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        Log.e(TAG, "WebView error: ${error?.description} (${error?.errorCode})")
-                        Log.e(TAG, "Failed URL: ${request?.url}")
+            function fixElement(elem) {
+                // Zaten islendiye atla (loop onlemeki icin)
+                if (elem.dataset.metricsFixed) return;
+                
+                var computedStyle = window.getComputedStyle(elem);
+                var isFlex = elem.classList.contains('d-flex') || 
+                             elem.classList.contains('row') || 
+                             elem.classList.contains('list-item') ||
+                             computedStyle.display === 'flex';
+                             
+                if (isFlex) {
+                    elem.style.setProperty('display', 'flex', 'important');
+                    elem.style.setProperty('flex-wrap', 'wrap', 'important');
+                } else {
+                    elem.style.setProperty('display', 'block', 'important');
+                }
+                
+                elem.style.setProperty('visibility', 'visible', 'important');
+                elem.style.setProperty('opacity', '1', 'important');
+                
+                // Isaretle
+                elem.dataset.metricsFixed = 'true';
+            }
+
+            function processNode(node) {
+                if (node.nodeType === 1) { // ELEMENT_NODE
+                    // Hedef element mi?
+                    if (node.matches && (node.matches('.card-body') || 
+                        node.matches('.row') || 
+                        node.matches('.col-md-12') || 
+                        node.matches('.card') || 
+                        node.matches('.list-item') || 
+                        node.matches('[class*="list-item"]'))) {
+                        fixElement(node);
                     }
-                }
-
-                override fun onReceivedHttpError(
-                    view: WebView?,
-                    request: WebResourceRequest?,
-                    errorResponse: WebResourceResponse?
-                ) {
-                    super.onReceivedHttpError(view, request, errorResponse)
-                    Log.e(TAG, "HTTP error: ${errorResponse?.statusCode} - ${request?.url}")
+                    
+                    // Alt elementleri de kontrol et
+                    var children = node.querySelectorAll('.card-body, .row, .col-md-12, .card, .list-item, [class*="list-item"]');
+                    children.forEach(fixElement);
                 }
             }
 
-            // window.print() çağrılarını yakala (Android 4.4+)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                interceptWindowPrint()
+            // 1. Mevcut elementleri duzelt
+            var existingElements = document.querySelectorAll('.card-body, .row, .col-md-12, .card, .list-item, [class*="list-item"]');
+            existingElements.forEach(fixElement);
+
+            // 2. Yeni eklenenleri izle (Dynamic Content / SPA)
+            var observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    mutation.addedNodes.forEach(processNode);
+                    
+                    // Attribute degisikliklerini de izle (or: class degisimi)
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                        processNode(mutation.target);
+                    }
+                });
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['class', 'style']
+            });
+            
+            console.log('=== Visibility Fix (MutationObserver) Applied ===');
+        })();
+    """.trimIndent()
+
+                    webView.evaluateJavascript(setupScript, null)
+                }
+
             }
         }
     }
@@ -791,8 +647,7 @@ class WebViewActivity : ComponentActivity() {
                 // Sadece web'den gelen içerik kullanılır
                 val success = sendHtmlToPrinter(
                     htmlContent = htmlContent,
-                    ipAddress = printer.ipAddress,
-                    port = printer.port
+                    printer = printer
                 )
 
                 runOnUiThread {
@@ -817,42 +672,410 @@ class WebViewActivity : ComponentActivity() {
     }
 
     /**
+     * Birden fazla yazıcıya yazdırma işlemini gerçekleştir
+     */
+    private fun printToMultiplePrinters(printers: List<Printer>, htmlContent: String, documentTitle: String) {
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "printToMultiplePrinters - ${printers.size} yazıcıya yazdırma başlatılıyor")
+        Log.d(TAG, "========================================")
+
+        lifecycleScope.launch {
+            var successCount = 0
+            var failCount = 0
+
+            printers.forEach { printer ->
+                try {
+                    Log.d(TAG, "Yazdırma başlatılıyor: ${printer.getDisplayName()} - ${printer.ipAddress}:${printer.port}")
+
+                    val success = sendHtmlToPrinter(
+                        htmlContent = htmlContent,
+                        printer = printer
+                    )
+
+                    if (success) {
+                        successCount++
+                        Log.d(TAG, "✓ ${printer.getDisplayName()} - Yazdırma başarılı")
+                    } else {
+                        failCount++
+                        Log.e(TAG, "✗ ${printer.getDisplayName()} - Yazdırma başarısız")
+                    }
+
+                    // Printerlar arasında kısa bir bekleme
+                    kotlinx.coroutines.delay(500)
+                } catch (e: Exception) {
+                    failCount++
+                    Log.e(TAG, "✗ ${printer.getDisplayName()} - Yazdırma hatası", e)
+                }
+            }
+
+            runOnUiThread {
+                val message = when {
+                    failCount == 0 -> {
+                        callJavaScriptCallback("onPrintSuccess", documentTitle)
+                        "Tüm yazıcılara başarıyla yazdırıldı! ($successCount yazıcı)"
+                    }
+                    successCount == 0 -> {
+                        callJavaScriptCallback("onPrintError", "Hiçbir yazıcıya yazdırılamadı")
+                        "Hiçbir yazıcıya yazdırılamadı! ($failCount hata)"
+                    }
+                    else -> {
+                        callJavaScriptCallback("onPrintSuccess", "$successCount başarılı, $failCount başarısız")
+                        "Kısmi başarı: $successCount başarılı, $failCount başarısız"
+                    }
+                }
+                showToast(message)
+                Log.d(TAG, "========================================")
+                Log.d(TAG, "Yazdırma tamamlandı: $message")
+                Log.d(TAG, "========================================")
+            }
+        }
+    }
+
+    /**
      * HTML içeriğini yazıcıya gönder
      * Logo ve footer ile birlikte formatlanmış fiş yazdırır
      */
     private suspend fun sendHtmlToPrinter(
         htmlContent: String, 
-        ipAddress: String, 
-        port: Int
+        printer: Printer
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "Sending HTML to printer: $ipAddress:$port")
+            Log.d(TAG, "========================================")
+            Log.d(TAG, "sendHtmlToPrinter - YAZDIRMA BAŞLATILIYOR")
+            Log.d(TAG, "========================================")
+            Log.d(TAG, "Printer: ${printer.name} (${printer.ipAddress}:${printer.port})")
+            Log.d(TAG, "Cut paper: ${printer.cutPaper}, Feed lines: ${printer.cutFeedLines}")
+            Log.d(TAG, "CHARSET ENCODING: ${printer.charsetEncoding}") // ÖNEMLİ: Encoding log'u
             
             // HTML'den temiz metin çıkar
-            val cleanText = TurkishCharacterEncoder.extractTextFromHtml(htmlContent)
+            var cleanText = TurkishCharacterEncoder.extractTextFromHtml(htmlContent)
+            
+            // Türkçe karakter iptal et (eğer ayar aktifse)
+            if (printer.cancelTurkishChars) {
+                cleanText = TurkishCharacterEncoder.cancelTurkishCharacters(cleanText)
+                Log.d(TAG, "Turkish characters cancelled (İ→I, ı→i, Ö→O, ö→o, Ü→U, ü→u, Ş→S, ş→s, Ğ→G, ğ→g)")
+            }
             
             // Fiş içeriğini oluştur (logo + içerik + footer)
             val receiptContent = buildReceiptContent(cleanText)
             
             // Socket bağlantısı kur
             val socket = java.net.Socket()
-            socket.connect(java.net.InetSocketAddress(ipAddress, port), 5000)
+            socket.connect(java.net.InetSocketAddress(printer.ipAddress, printer.port), 5000)
             val outputStream = socket.getOutputStream()
 
-            // ESC/POS başlatma komutları (Türkçe karakter desteği ile)
-            outputStream.write(TurkishCharacterEncoder.getEscPosInitCommands())
+            // 1. ÖNCELİKLE ÇİNCE MODU İPTAL ET ve PRINTER'I İNİTİALİZE ET!
+            val initCommands = EscPosCommands.getInitCommands()
+            Log.d(TAG, "ESC/POS Init Commands sent (Çince modu iptal + Initialize)")
+            outputStream.write(initCommands)
+            outputStream.flush()
             
-            // İçeriği Türkçe karakter desteği ile gönder
-            outputStream.write(TurkishCharacterEncoder.encodeForPrinter(receiptContent))
+            // Kısa bekleme - printer'ın hazırlanması için
+            Thread.sleep(50)
             
-            // Kağıdı kes
-            outputStream.write(byteArrayOf(0x1D, 0x56, 0x00))
+            // 2. Encoding ayarla
+            val (charsetCommand, charsetName) = EscPosCommands.parseEncoding(printer.charsetEncoding)
+            if (charsetCommand.isNotEmpty()) {
+                outputStream.write(charsetCommand)
+                outputStream.flush()
+                Log.d(TAG, "Charset command sent for encoding: ${printer.charsetEncoding}")
+            } else {
+                Log.d(TAG, "No charset command (NONE_ prefix or PC3846_CP3846)")
+            }
+
+            // İçeriği charsetEncoding'e göre encode et
+            Log.d(TAG, "Encoding content with: ${printer.charsetEncoding}")
+            val encodedContent = when (printer.charsetEncoding) {
+                // PC3846_CP3846 eski encoding - artık NONE_CP857 kullanılıyor (karakter seti komutu göndermeden)
+                "PC3846_CP3846" -> {
+                    // PC3846 komutu Çince karakterlere neden oluyor, bu yüzden karakter seti komutu göndermeden sadece CP857 encoding kullanıyoruz
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    } catch (e: Exception) {
+                        try {
+                            receiptContent.toByteArray(Charset.forName("ISO-8859-9"))
+                        } catch (e2: Exception) {
+                            receiptContent.toByteArray(Charsets.UTF_8)
+                        }
+                    }
+                }
+                // PC857 kombinasyonları (ESC t 13 - 0x0D) - Standart PC857
+                "PC857_CP857" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("ISO-8859-9"))
+                    }
+                }
+                "PC857_ISO88599" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("ISO-8859-9"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                "PC857_Windows1254" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("Windows-1254"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                "PC857_CP850" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP850"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("Windows-1254"))
+                    }
+                }
+                "PC857_CP852" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP852"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                "PC857_CP853" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP853"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                // PC857_61 kombinasyonları (ESC t 61 - 0x3D) - Self-test: 61:PC857 Turkish
+                "PC857_61_CP857" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("ISO-8859-9"))
+                    }
+                }
+                "PC857_61_ISO88599" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("ISO-8859-9"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                "PC857_61_Windows1254" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("Windows-1254"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                "PC857_61_CP850" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP850"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("Windows-1254"))
+                    }
+                }
+                "PC857_61_CP852" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP852"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                "PC857_61_CP853" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP853"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                // PC850 kombinasyonları (ESC t 2 - 0x02)
+                "PC850_CP850" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP850"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("Windows-1254"))
+                    }
+                }
+                "PC850_Windows1254" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("Windows-1254"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP850"))
+                    }
+                }
+                "PC850_ISO88599" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("ISO-8859-9"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP850"))
+                    }
+                }
+                "PC850_CP857" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("ISO-8859-9"))
+                    }
+                }
+                // PC852 kombinasyonları (ESC t 18 - 0x12) - Central Europe
+                "PC852_CP852" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP852"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                "PC852_CP857" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("ISO-8859-9"))
+                    }
+                }
+                "PC852_CP850" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP850"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("Windows-1254"))
+                    }
+                }
+                // PC853 kombinasyonları (ESC t 8 - 0x08) - Turkish
+                "PC853_CP853" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP853"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                "PC853_CP857" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("ISO-8859-9"))
+                    }
+                }
+                "PC853_CP850" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP850"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("Windows-1254"))
+                    }
+                }
+                // Karakter seti seçimi olmadan encoding'ler
+                "NONE_CP857" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("ISO-8859-9"))
+                    }
+                }
+                "NONE_CP850" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP850"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("Windows-1254"))
+                    }
+                }
+                "NONE_Windows1254" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("Windows-1254"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP850"))
+                    }
+                }
+                "NONE_ISO88599" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("ISO-8859-9"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                "NONE_CP852" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP852"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                "NONE_CP853" -> {
+                    try {
+                        receiptContent.toByteArray(Charset.forName("CP853"))
+                    } catch (e: Exception) {
+                        receiptContent.toByteArray(Charset.forName("CP857"))
+                    }
+                }
+                else -> {
+                    // NONE_ prefix'i ile başlayan encoding'ler için direkt encoding kullan
+                    if (printer.charsetEncoding.startsWith("NONE_")) {
+                        val encodingName = printer.charsetEncoding.substring(5) // "NONE_" kısmını çıkar
+                        // ISO-8859-X formatını düzelt
+                        val normalizedName = when {
+                            encodingName.startsWith("ISO8859") -> {
+                                val num = encodingName.substring(7)
+                                "ISO-8859-$num"
+                            }
+                            encodingName.startsWith("IBM") -> {
+                                when (encodingName) {
+                                    "IBM437" -> "CP437"
+                                    "IBM850" -> "CP850"
+                                    "IBM857" -> "CP857"
+                                    "IBM860" -> "CP860"
+                                    "IBM861" -> "CP861"
+                                    "IBM862" -> "CP862"
+                                    "IBM863" -> "CP863"
+                                    "IBM864" -> "CP864"
+                                    "IBM865" -> "CP865"
+                                    "IBM866" -> "CP866"
+                                    "IBM869" -> "CP869"
+                                    "IBM00858" -> "CP858"
+                                    else -> encodingName
+                                }
+                            }
+                            else -> encodingName
+                        }
+                        try {
+                            receiptContent.toByteArray(Charset.forName(normalizedName))
+                        } catch (e: Exception) {
+                            receiptContent.toByteArray(Charsets.UTF_8)
+                        }
+                    } else {
+                        // Varsayılan: NONE_CP857 (karakter seti komutu göndermeden sadece CP857 encoding)
+                        // PC3846 komutu Çince karakterlere neden oluyor, bu yüzden karakter seti komutu göndermiyoruz
+                        try {
+                            receiptContent.toByteArray(Charset.forName("CP857"))
+                        } catch (e: Exception) {
+                            try {
+                                receiptContent.toByteArray(Charset.forName("ISO-8859-9"))
+                            } catch (e2: Exception) {
+                                receiptContent.toByteArray(Charsets.UTF_8)
+                            }
+                        }
+                    }
+                }
+            }
+            Log.d(TAG, "Encoded content size: ${encodedContent.size} bytes")
+            Log.d(TAG, "Content preview (first 100 chars): ${receiptContent.take(100)}")
+            outputStream.write(encodedContent)
+
+            // Kağıdı kes (printer ayarına göre)
+            if (printer.cutPaper) {
+                // Kesme öncesi boşluk ver
+                if (printer.cutFeedLines > 0) {
+                    // ESC d n - n satır besle
+                    outputStream.write(byteArrayOf(0x1B, 0x64, printer.cutFeedLines.toByte()))
+                    Log.d(TAG, "Feed ${printer.cutFeedLines} lines before cut")
+                }
+
+                // Tam kesim
+                outputStream.write(byteArrayOf(0x1D, 0x56, 0x00))  // GS V 0
+                Log.d(TAG, "Cut paper command sent")
+            } else {
+                Log.d(TAG, "Cut paper disabled")
+            }
 
             outputStream.flush()
             outputStream.close()
             socket.close()
 
-            Log.d(TAG, "✓ Print successful")
+            Log.d(TAG, "✓ Print successful with encoding: ${printer.charsetEncoding}")
+            Log.d(TAG, "========================================")
             true
         } catch (e: Exception) {
             Log.e(TAG, "✗ Printer connection error", e)
@@ -1079,7 +1302,11 @@ class WebViewActivity : ComponentActivity() {
                     ipAddress = selectedPrinter.ipAddress,
                     port = selectedPrinter.port,
                     htmlContent = pdfText,
-                    title = "PDF Makbuz"
+                    title = "PDF Makbuz",
+                    cutPaper = selectedPrinter.cutPaper,
+                    cutFeedLines = selectedPrinter.cutFeedLines,
+                    charsetEncoding = selectedPrinter.charsetEncoding,
+                    cancelTurkishChars = selectedPrinter.cancelTurkishChars
                 )
 
                 when (result) {
@@ -1611,8 +1838,13 @@ class WebViewActivity : ComponentActivity() {
         Log.d(TAG, "Note: For window.print() support, use JavaScript interface triggerNativePrint()")
     }
 
+    // Preview dialog state
+    private val _showPreviewDialog = mutableStateOf(false)
+    private val _previewContent = mutableStateOf("")
+    private val _previewTitle = mutableStateOf("")
+
     /**
-     * Önizleme göster - Kendi PreviewActivity'mizi kullanarak
+     * Önizleme göster - Dialog olarak mevcut ekranın üstünde
      */
     private fun showPrintPreview(htmlContent: String, title: String) {
         Log.d(TAG, "========================================")
@@ -1644,19 +1876,28 @@ class WebViewActivity : ComponentActivity() {
                 </html>
             """.trimIndent()
             
-            // PreviewActivity'yi aç
-            val intent = Intent(this, com.example.rawbtapp.preview.PreviewActivity::class.java).apply {
-                putExtra(com.example.rawbtapp.preview.PreviewActivity.EXTRA_HTML_CONTENT, fullHtml)
-                putExtra(com.example.rawbtapp.preview.PreviewActivity.EXTRA_TITLE, title)
-            }
-            startActivity(intent)
-            
-            Log.d(TAG, "✓ PreviewActivity opened")
+            // Dialog state'ini güncelle
+            _previewContent.value = fullHtml
+            _previewTitle.value = title
+            _showPreviewDialog.value = true
+
+            Log.d(TAG, "✓ Preview dialog opened")
             
         } catch (e: Exception) {
             Log.e(TAG, "Error showing print preview", e)
             Toast.makeText(this, "Önizleme hatası: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+    
+    /**
+     * Printer yönetim ekranını aç
+     */
+    private fun openPrinterScreen() {
+        Log.d(TAG, "Opening PrinterSelectionActivity from settings button")
+        val intent = Intent(this, com.example.rawbtapp.printer.PrinterSelectionActivity::class.java)
+        intent.putExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.EXTRA_HTML_CONTENT, "")
+        intent.putExtra(com.example.rawbtapp.printer.PrinterSelectionActivity.EXTRA_DOCUMENT_TITLE, "Printer Yönetimi")
+        startActivity(intent)
     }
 
     @Deprecated("Deprecated in Java")
@@ -1680,12 +1921,27 @@ class WebViewActivity : ComponentActivity() {
 fun WebViewScreen(
     url: String,
     title: String = "POS Web Sistemi",
-    onWebViewCreated: (WebView) -> Unit
+    onWebViewCreated: (WebView) -> Unit,
+    onSettingsClick: () -> Unit = {},
+    showPreviewDialog: Boolean = false,
+    previewContent: String = "",
+    previewTitle: String = "",
+    onPreviewDismiss: () -> Unit = {},
+    onPreviewPrint: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(title) },
+                actions = {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Settings",
+                            tint = androidx.compose.ui.graphics.Color.White
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -1693,6 +1949,7 @@ fun WebViewScreen(
             )
         }
     ) { paddingValues ->
+        Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
             modifier = Modifier
                 .fillMaxSize()
@@ -1703,6 +1960,17 @@ fun WebViewScreen(
                     webView.loadUrl(url)
                 }
             }
-        )
+            )
+
+            // Preview Dialog
+            if (showPreviewDialog) {
+                com.example.rawbtapp.ui.PrintPreviewDialog(
+                    content = previewContent,
+                    onDismiss = onPreviewDismiss,
+                    onPrint = onPreviewPrint,
+                    showRawData = false
+                )
+            }
+        }
     }
 }

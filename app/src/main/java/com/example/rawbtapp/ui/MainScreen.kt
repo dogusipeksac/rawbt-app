@@ -126,10 +126,11 @@ fun MainScreen(
                 PrinterManagementCard(
                     savedPrinters = printerUiState.savedPrinters,
                     selectedPrinter = printerUiState.selectedPrinter,
-                    onAddPrinter = printerViewModel::addPrinter,
+                    viewModel = printerViewModel,
                     onDeletePrinter = printerViewModel::deletePrinter,
-                    onSelectPrinter = printerViewModel::selectPrinter,
-                    isEnabled = !printerUiState.isLoading
+                    onSelectPrinter = { }, // Ayarlar sayfasında seçme işlemi yapılmaz
+                    isEnabled = !printerUiState.isLoading,
+                    isSelectable = false // Ayarlar sayfasında seçme devre dışı
                 )
             }
         }

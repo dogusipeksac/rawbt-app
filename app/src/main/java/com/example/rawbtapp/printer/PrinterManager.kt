@@ -13,7 +13,25 @@ import java.util.UUID
  * SharedPreferences ile yazıcıları kaydeder ve yönetir
  */
 class PrinterManager(context: Context) {
-    
+
+    /**
+     * Çince karakterleri iptal et - XPrinter için kritik!
+     * Bazı XPrinter modelleri varsayılan olarak Çince modunda geliyor
+     */
+    private fun cancelChineseMode(): ByteArray {
+        return byteArrayOf(0x1C.toByte(), 0x2E.toByte())  // FS . (Cancel Chinese Mode)
+    }
+
+    /**
+     * Her yazdırma öncesi çalıştırılacak başlangıç komutları
+     */
+    private fun getInitCommands(): ByteArray {
+        return byteArrayOf(
+            0x1C.toByte(), 0x2E.toByte(),  // 1. ÖNCELİKLE Çince modu iptal et!
+            0x1B.toByte(), 0x40.toByte()   // 2. Printer'ı initialize et
+        )
+    }
+
     private val sharedPreferences: SharedPreferences = 
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     
@@ -56,7 +74,16 @@ class PrinterManager(context: Context) {
     /**
      * Yeni yazıcı ekle
      */
-    fun addPrinter(name: String, number: String, ipAddress: String, port: Int): Printer {
+    fun addPrinter(
+        name: String,
+        number: String,
+        ipAddress: String,
+        port: Int,
+        cutPaper: Boolean = true,
+        cutFeedLines: Int = 3,
+        charsetEncoding: String = "PC857_CP857",
+        cancelTurkishChars: Boolean = false
+    ): Printer {
         Log.d(TAG, "========================================")
         Log.d(TAG, "addPrinter - Yeni yazıcı ekleniyor")
         Log.d(TAG, "========================================")
@@ -64,42 +91,70 @@ class PrinterManager(context: Context) {
         Log.d(TAG, "Number: $number")
         Log.d(TAG, "IP: $ipAddress")
         Log.d(TAG, "Port: $port")
-        
+        Log.d(TAG, "Cut Paper: $cutPaper")
+        Log.d(TAG, "Cut Feed Lines: $cutFeedLines")
+        Log.d(TAG, "Charset Encoding: $charsetEncoding")
+
         val printer = Printer(
             id = UUID.randomUUID().toString(),
             name = name,
             number = number,
             ipAddress = ipAddress,
-            port = port
+            port = port,
+            cutPaper = cutPaper,
+            cutFeedLines = cutFeedLines,
+            charsetEncoding = charsetEncoding,
+            cancelTurkishChars = cancelTurkishChars
         )
-        
+
         val printers = getAllPrinters().toMutableList()
         printers.add(printer)
         savePrinters(printers)
-        
+
         Log.d(TAG, "✓ Yazıcı eklendi: ${printer.getDisplayName()}")
         Log.d(TAG, "========================================")
-        
+
         return printer
     }
     
     /**
      * Yazıcıyı güncelle
      */
-    fun updatePrinter(id: String, name: String, number: String, ipAddress: String, port: Int): Boolean {
+    fun updatePrinter(
+        id: String,
+        name: String,
+        number: String,
+        ipAddress: String,
+        port: Int,
+        cutPaper: Boolean = true,
+        cutFeedLines: Int = 3,
+        charsetEncoding: String = "PC857_CP857",
+        cancelTurkishChars: Boolean = false
+    ): Boolean {
         Log.d(TAG, "updatePrinter - Yazıcı güncelleniyor: $id")
-        
+
         val printers = getAllPrinters().toMutableList()
         val index = printers.indexOfFirst { it.id == id }
-        
+
         if (index == -1) {
             Log.e(TAG, "✗ Yazıcı bulunamadı: $id")
             return false
         }
-        
-        printers[index] = Printer(id, name, number, ipAddress, port)
+
+        val existingPrinter = printers[index]
+        printers[index] = Printer(
+            id = id,
+            name = name,
+            number = number,
+            ipAddress = ipAddress,
+            port = port,
+            cutPaper = cutPaper,
+            cutFeedLines = cutFeedLines,
+            charsetEncoding = charsetEncoding,
+            cancelTurkishChars = cancelTurkishChars
+        )
         savePrinters(printers)
-        
+
         Log.d(TAG, "✓ Yazıcı güncellendi")
         return true
     }

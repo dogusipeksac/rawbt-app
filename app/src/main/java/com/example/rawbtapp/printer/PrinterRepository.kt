@@ -16,13 +16,15 @@ class PrinterRepository {
     suspend fun printCustomText(
         ipAddress: String,
         port: Int,
-        text: String
+        text: String,
+        charsetEncoding: String = "PC857_CP857",
+        cancelTurkishChars: Boolean = false
     ): PrintResult {
         if (text.isBlank()) {
             return PrintResult.Error("Yazdırılacak metin boş olamaz")
         }
         
-        val printData = buildEscPosCommand {
+        val printData = buildEscPosCommand(charsetEncoding, cancelTurkishChars) {
             initialize()
             alignCenter()
             boldTextLine("YAZDIRMA")
@@ -46,9 +48,155 @@ class PrinterRepository {
      */
     suspend fun printTest(
         ipAddress: String,
-        port: Int
+        port: Int,
+        cutPaper: Boolean = true,
+        cutFeedLines: Int = 3,
+        charsetEncoding: String = "PC857_CP857",
+        cancelTurkishChars: Boolean = false
     ): PrintResult {
-        return printerClient.printTest(ipAddress, port)
+        return printerClient.printTest(ipAddress, port, cutPaper, cutFeedLines, charsetEncoding, cancelTurkishChars)
+    }
+    
+    /**
+     * Özel metin ile basit test
+     */
+    suspend fun printCustomTest(
+        ipAddress: String,
+        port: Int,
+        customText: String,
+        cutPaper: Boolean = true,
+        cutFeedLines: Int = 3,
+        charsetEncoding: String = "PC857_CP857",
+        cancelTurkishChars: Boolean = false
+    ): PrintResult {
+        val printData = buildEscPosCommand(charsetEncoding, cancelTurkishChars) {
+            initialize()
+            alignCenter()
+            doubleTextLine("TEST YAZDIR")
+            newLine()
+            alignLeft()
+            horizontalLine()
+            textLine(customText)
+            horizontalLine()
+            newLine()
+            alignCenter()
+            textLine("Tarih: ${getCurrentDateTime()}")
+            if (cutPaper) {
+                feedPaper(cutFeedLines)
+                cutPaper()
+            } else {
+                feedPaper(3)
+            }
+        }
+        return printerClient.print(ipAddress, port, printData)
+    }
+    
+    /**
+     * Full test - Tüm encoding'leri dener (sadece kullanıcının metni + encoding adı, sonunda kesme)
+     */
+    suspend fun printFullTest(
+        ipAddress: String,
+        port: Int,
+        customText: String,
+        cutPaper: Boolean = true,
+        cutFeedLines: Int = 3,
+        cancelTurkishChars: Boolean = false
+    ): PrintResult {
+        val allEncodings = com.example.rawbtapp.printer.CharsetEncodingOptions.allEncodingsForFullTest
+        val testResults = mutableListOf<String>()
+        
+        allEncodings.forEach { encoding ->
+            try {
+                // Encoding değerini direkt kullan (zaten doğru formatta)
+                // PC3846_, PC857_, PC857_61_, PC850_, PC858_, PC437_ ile başlayanlar karakter seti komutu gönderir
+                // NONE_ ile başlayanlar sadece encoding kullanır
+                val charsetValue = encoding
+                
+                val printData = buildEscPosCommand(charsetValue, cancelTurkishChars) {
+                    initialize() // ESC @ + karakter seti komutu (varsa) veya sadece ESC @
+                    textLine("$customText - $encoding")
+                    newLine(1) // Sadece bir satır boşluk, kesme yok (aralarında)
+                }
+                
+                val result = printerClient.print(ipAddress, port, printData)
+                when (result) {
+                    is PrintResult.Success -> {
+                        testResults.add("✓ $encoding: Başarılı")
+                    }
+                    is PrintResult.Error -> {
+                        testResults.add("✗ $encoding: ${result.message}")
+                    }
+                }
+                
+                // Her test arasında kısa bir bekleme
+                kotlinx.coroutines.delay(300)
+            } catch (e: Exception) {
+                testResults.add("✗ $encoding: ${e.message}")
+            }
+        }
+        
+        // Tüm testler bittikten sonra kesme yap
+        if (cutPaper) {
+            try {
+                val cutData = buildEscPosCommand("NONE_UTF8") {
+                    initialize()
+                    feedPaper(cutFeedLines)
+                    cutPaper()
+                }
+                printerClient.print(ipAddress, port, cutData)
+            } catch (e: Exception) {
+                // Kesme hatası önemli değil
+            }
+        }
+        
+        return PrintResult.Success("Full test tamamlandı. ${testResults.size} encoding test edildi.")
+    }
+    
+    /**
+     * Detaylı test - IP, port, yazıcı bilgileriyle
+     */
+    suspend fun printDetailedTest(
+        printer: com.example.rawbtapp.model.Printer,
+        customText: String
+    ): PrintResult {
+        val printData = buildEscPosCommand(printer.charsetEncoding, printer.cancelTurkishChars) {
+            initialize()
+            alignCenter()
+            doubleTextLine("DETAYLI TEST")
+            newLine()
+            alignLeft()
+            horizontalLine()
+            boldTextLine("YAZICI BİLGİLERİ")
+            horizontalLine()
+            textLine("Ad: ${printer.name}")
+            textLine("Numara: #${printer.number}")
+            textLine("IP Adresi: ${printer.ipAddress}")
+            textLine("Port: ${printer.port}")
+            horizontalLine()
+            boldTextLine("AYARLAR")
+            horizontalLine()
+            textLine("Kağıt Kesme: ${if (printer.cutPaper) "Aktif" else "Kapalı"}")
+            textLine("Kesme Öncesi Boşluk: ${printer.cutFeedLines} satır")
+            textLine("Karakter Seti: ${com.example.rawbtapp.printer.CharsetEncodingOptions.getOptionByValue(printer.charsetEncoding)?.displayName ?: printer.charsetEncoding}")
+            horizontalLine()
+            boldTextLine("TEST METNİ")
+            horizontalLine()
+            textLine(customText)
+            horizontalLine()
+            newLine()
+            alignCenter()
+            textLine("Tarih: ${getCurrentDateTime()}")
+            newLine(2)
+            alignCenter()
+            textLine("Test Başarılı!")
+            if (printer.cutPaper) {
+                feedPaper(printer.cutFeedLines)
+                cutPaper()
+            } else {
+                feedPaper(3)
+            }
+        }
+        return printerClient.print(printer.ipAddress, printer.port, printData)
     }
     
     /**
@@ -57,9 +205,13 @@ class PrinterRepository {
      */
     suspend fun printSampleReceipt(
         ipAddress: String,
-        port: Int
+        port: Int,
+        cutPaper: Boolean = true,
+        cutFeedLines: Int = 3,
+        charsetEncoding: String = "PC857_CP857",
+        cancelTurkishChars: Boolean = false
     ): PrintResult {
-        val receiptData = buildEscPosCommand {
+        val receiptData = buildEscPosCommand(charsetEncoding, cancelTurkishChars) {
             initialize()
             
             // Logo ekle (eğer aktifse)
@@ -124,8 +276,12 @@ class PrinterRepository {
             }
             
             // Kağıt besle ve kes
-            feedPaper(PrintConstants.FOOTER_BOTTOM_SPACING)
-            cutPaper()
+            if (cutPaper) {
+                feedPaper(cutFeedLines)
+                cutPaper()
+            } else {
+                feedPaper(PrintConstants.FOOTER_BOTTOM_SPACING)
+            }
         }
         
         return printerClient.print(ipAddress, port, receiptData)
@@ -136,9 +292,11 @@ class PrinterRepository {
      */
     suspend fun printDemo(
         ipAddress: String,
-        port: Int
+        port: Int,
+        charsetEncoding: String = "PC857_CP857",
+        cancelTurkishChars: Boolean = false
     ): PrintResult {
-        val demoData = buildEscPosCommand {
+        val demoData = buildEscPosCommand(charsetEncoding, cancelTurkishChars) {
             initialize()
             
             // Başlık
@@ -212,9 +370,13 @@ class PrinterRepository {
     suspend fun printReceiptFromWeb(
         ipAddress: String,
         port: Int,
-        receiptData: ReceiptData
+        receiptData: ReceiptData,
+        cutPaper: Boolean = true,
+        cutFeedLines: Int = 3,
+        charsetEncoding: String = "PC857_CP857",
+        cancelTurkishChars: Boolean = false
     ): PrintResult {
-        val printData = buildEscPosCommand {
+        val printData = buildEscPosCommand(charsetEncoding, cancelTurkishChars) {
             initialize()
             
             // Başlık - İşletme bilgileri
@@ -272,8 +434,12 @@ class PrinterRepository {
             newLine()
             
             // Kağıt besle ve kes
-            feedPaper(4)
-            cutPaper()
+            if (cutPaper) {
+                feedPaper(cutFeedLines)
+                cutPaper()
+            } else {
+                feedPaper(4)
+            }
         }
         
         return printerClient.print(ipAddress, port, printData)
@@ -288,12 +454,16 @@ class PrinterRepository {
         port: Int,
         receiptData: ReceiptData,
         maxRetries: Int = 3,
-        delayMillis: Long = 1000
+        delayMillis: Long = 1000,
+        cutPaper: Boolean = true,
+        cutFeedLines: Int = 3,
+        charsetEncoding: String = "PC857_CP857",
+        cancelTurkishChars: Boolean = false
     ): PrintResult {
         var lastError: String? = null
         
         repeat(maxRetries) { attempt ->
-            val result = printReceiptFromWeb(ipAddress, port, receiptData)
+            val result = printReceiptFromWeb(ipAddress, port, receiptData, cutPaper, cutFeedLines, charsetEncoding, cancelTurkishChars)
             
             when (result) {
                 is PrintResult.Success -> return result
@@ -318,9 +488,13 @@ class PrinterRepository {
         ipAddress: String,
         port: Int,
         htmlContent: String,
-        title: String = "POS Fiş"
+        title: String = "POS Fiş",
+        cutPaper: Boolean = true,
+        cutFeedLines: Int = 3,
+        charsetEncoding: String = "PC857_CP857",
+        cancelTurkishChars: Boolean = false
     ): PrintResult {
-        val printData = buildEscPosCommand {
+        val printData = buildEscPosCommand(charsetEncoding, cancelTurkishChars) {
             initialize()
             
             // Logo ekle (eğer aktifse)
@@ -381,8 +555,12 @@ class PrinterRepository {
             }
             
             // Kağıt besle ve kes
-            feedPaper(PrintConstants.FOOTER_BOTTOM_SPACING)
-            cutPaper()
+            if (cutPaper) {
+                feedPaper(cutFeedLines)
+                cutPaper()
+            } else {
+                feedPaper(PrintConstants.FOOTER_BOTTOM_SPACING)
+            }
         }
         
         return printerClient.print(ipAddress, port, printData)
