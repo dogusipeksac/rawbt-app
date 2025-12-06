@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -870,11 +871,36 @@ fun AddPrinterDialogInSelection(
                 Column(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "Karakter Seti",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Karakter Seti",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        var showHelp by remember { mutableStateOf(false) }
+                        TextButton(
+                            onClick = { showHelp = true },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = "Yardım",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                "Türkçe karakter sorunu?",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                        if (showHelp) {
+                            com.example.rawbtapp.ui.TurkishCharacterHelpDialog(onDismiss = { showHelp = false })
+                        }
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     ExposedDropdownMenuBox(
                         expanded = expandedCharsetDropdown,
@@ -986,7 +1012,7 @@ fun EditPrinterDialogInSelection(
     var port by remember { mutableStateOf(printer.port.toString()) }
     var cutPaper by remember { mutableStateOf(printer.cutPaper) }
     var cutFeedLines by remember { mutableStateOf(printer.cutFeedLines) }
-    var charsetEncoding by remember { mutableStateOf(printer.charsetEncoding) }
+    var charsetEncoding by remember { mutableStateOf(com.example.rawbtapp.printer.CharsetEncodingOptions.getDefaultValue()) }
     var expandedCharsetDropdown by remember { mutableStateOf(false) }
     var cancelTurkishChars by remember { mutableStateOf(printer.cancelTurkishChars) }
 
@@ -1017,6 +1043,7 @@ fun EditPrinterDialogInSelection(
         },
         text = {
             Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 OutlinedTextField(
@@ -1143,11 +1170,36 @@ fun EditPrinterDialogInSelection(
                 Column(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "Karakter Seti",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Karakter Seti",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        var showHelp by remember { mutableStateOf(false) }
+                        TextButton(
+                            onClick = { showHelp = true },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = "Yardım",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                "Türkçe karakter sorunu?",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                        if (showHelp) {
+                            com.example.rawbtapp.ui.TurkishCharacterHelpDialog(onDismiss = { showHelp = false })
+                        }
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     ExposedDropdownMenuBox(
                         expanded = expandedCharsetDropdown,

@@ -72,6 +72,29 @@ class PrinterManager(context: Context) {
     }
     
     /**
+     * Yazıcı için otomatik encoding tespiti yap ve güncelle
+     * İlk yazdırmada çağrılır
+     */
+    suspend fun autoDetectAndUpdateEncoding(printerId: String): String {
+        val printer = getPrinterById(printerId) ?: return "PC857_CP857"
+        
+        Log.d(TAG, "Auto-detecting encoding for printer: ${printer.name}")
+        
+        // Otomatik tespit
+        val bestEncoding = AutoEncodingDetector.detectBestEncoding(
+            printer.ipAddress,
+            printer.port
+        )
+        
+        // Encoding'i güncelle
+        val updatedPrinter = printer.copy(charsetEncoding = bestEncoding)
+        updatePrinter(updatedPrinter)
+        
+        Log.d(TAG, "✓ Auto-detected encoding: $bestEncoding")
+        return bestEncoding
+    }
+    
+    /**
      * Yeni yazıcı ekle
      */
     fun addPrinter(
@@ -81,7 +104,7 @@ class PrinterManager(context: Context) {
         port: Int,
         cutPaper: Boolean = true,
         cutFeedLines: Int = 3,
-        charsetEncoding: String = "PC857_CP857",
+        charsetEncoding: String = "AUTO",  // Varsayılan: Otomatik tespit
         cancelTurkishChars: Boolean = false
     ): Printer {
         Log.d(TAG, "========================================")
@@ -115,6 +138,23 @@ class PrinterManager(context: Context) {
         Log.d(TAG, "========================================")
 
         return printer
+    }
+    
+    /**
+     * Yazıcıyı güncelle (Printer objesi ile)
+     */
+    fun updatePrinter(printer: Printer): Boolean {
+        return updatePrinter(
+            id = printer.id,
+            name = printer.name,
+            number = printer.number,
+            ipAddress = printer.ipAddress,
+            port = printer.port,
+            cutPaper = printer.cutPaper,
+            cutFeedLines = printer.cutFeedLines,
+            charsetEncoding = printer.charsetEncoding,
+            cancelTurkishChars = printer.cancelTurkishChars
+        )
     }
     
     /**

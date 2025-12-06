@@ -10,7 +10,7 @@ import java.nio.charset.Charset
 class EscPosCommands {
     
     private val buffer = ByteArrayOutputStream()
-    var charsetEncoding: String = "PC857_CP857"  // Varsayılan: Çalışan encoding - PC857 + CP857 (Turkish)
+    var charsetEncoding: String = "AUTO"  // Varsayılan: Otomatik tespit
     var cancelTurkishChars: Boolean = false  // Türkçe karakterleri İngilizce karşılıklarına çevir
     
     companion object {
@@ -137,8 +137,11 @@ class EscPosCommands {
         // 1. ÖNCELİKLE ÇİNCE MODU İPTAL ET ve PRINTER'I İNİTİALİZE ET!
         buffer.write(getInitCommands())
         
+        // AUTO ise PC857_CP857 kullan (otomatik tespit sonrası güncellenecek)
+        val actualEncoding = if (charsetEncoding == "AUTO") "PC857_CP857" else charsetEncoding
+        
         // 2. charsetEncoding'e göre karakter seti seç
-        when (charsetEncoding) {
+        when (actualEncoding) {
             // PC857 kombinasyonları - ESC t 13 (0x0D) - Standart PC857
             "PC857_CP857", "PC857_ISO88599", "PC857_Windows1254", "PC857_CP850", "PC857_CP852", "PC857_CP853" -> buffer.write(CHARSET_PC857)  // ESC t 13
             // PC857_61 kombinasyonları - ESC t 61 (0x3D) - Self-test: 61:PC857 Turkish
@@ -181,7 +184,10 @@ class EscPosCommands {
             text
         }
         
-        val encoded = when (charsetEncoding) {
+        // AUTO ise PC857_CP857 kullan
+        val actualEncoding = if (charsetEncoding == "AUTO") "PC857_CP857" else charsetEncoding
+        
+        val encoded = when (actualEncoding) {
             "PC857_CP857" -> {
                 try {
                     processedText.toByteArray(Charset.forName("CP857"))

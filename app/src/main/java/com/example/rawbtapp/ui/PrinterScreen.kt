@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -887,11 +888,36 @@ fun AddPrinterDialog(
                 Column(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "Karakter Seti",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Karakter Seti",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        var showHelp by remember { mutableStateOf(false) }
+                        TextButton(
+                            onClick = { showHelp = true },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = "Yardım",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                "Türkçe karakter sorunu?",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                        if (showHelp) {
+                            TurkishCharacterHelpDialog(onDismiss = { showHelp = false })
+                        }
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     ExposedDropdownMenuBox(
                         expanded = expandedCharsetDropdown,
@@ -973,7 +999,11 @@ fun AddPrinterDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onAdd(name, number, ipAddress, port, cutPaper, cutFeedLines, charsetEncoding, cancelTurkishChars) },
+                onClick = { 
+                    // AUTO ise otomatik tespit edilecek
+                    val finalEncoding = if (charsetEncoding == "AUTO") "AUTO" else charsetEncoding
+                    onAdd(name, number, ipAddress, port, cutPaper, cutFeedLines, finalEncoding, cancelTurkishChars) 
+                },
                 shape = MaterialTheme.shapes.medium
             ) {
                 Text("Ekle", style = MaterialTheme.typography.labelLarge)

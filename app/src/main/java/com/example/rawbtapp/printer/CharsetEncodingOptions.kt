@@ -19,6 +19,9 @@ object CharsetEncodingOptions {
      * Priority: 3 = En güvenli, 2 = Güvenli, 1 = Çalışıyor, 0 = Test gerekli
      */
     private val encodingList = listOf(
+        // OTOMATİK TESPİT (Priority: 4)
+        "AUTO",               // Otomatik tespit - İlk yazdırmada en uygun encoding'i bulur
+        
         // EN GÜVENLİ - Her iki printer için (Priority: 3)
         "PC857_CP857",        // ÇALIŞAN - PC857 + CP857 (Turkish)
         "NONE_CP857",         // ÇALIŞAN
@@ -81,6 +84,7 @@ object CharsetEncodingOptions {
      */
     private fun getDisplayName(value: String): String {
         return when (value) {
+            "AUTO" -> "🤖 Otomatik Tespit (ÖNERİLEN)"
             "PC857_CP857" -> "PC857 + CP857 (Turkish)"
             "NONE_CP857" -> "CP857 (Karakter seti yok)"
             "PC3846_CP3846" -> "PC3846 + CP857 (Turkish)"
@@ -119,7 +123,8 @@ object CharsetEncodingOptions {
      */
     private fun getDescription(value: String): String {
         return when (value) {
-            "PC857_CP857" -> "ÖNERİLEN: PC857 (ESC t 13) + CP857 encoding"
+            "AUTO" -> "İlk yazdırmada yazıcınız için en uygun ayarı otomatik bulur"
+            "PC857_CP857" -> "MANUEL: PC857 (ESC t 13) + CP857 encoding"
             "NONE_CP857" -> "GÜVENLİ: Karakter seti komutu yok + CP857"
             "PC3846_CP3846" -> "ALTERNATİF GÜVENLİ: PC3846 + CP857"
             "PC857_61_CP857" -> "Model 1 için ÇALIŞAN: PC857 (ESC t 61) + CP857"
@@ -141,6 +146,7 @@ object CharsetEncodingOptions {
      */
     private fun getPriority(value: String): Int {
         return when (value) {
+            "AUTO" -> 4                                          // En öncelikli - Otomatik
             "PC857_CP857", "NONE_CP857", "PC3846_CP3846" -> 3  // En güvenli
             "PC857_ISO88599", "PC857_Windows1254" -> 2          // Güvenli
             "PC857_61_CP857", "PC857_61_CP852" -> 1             // Model 1'de çalışıyor
@@ -153,7 +159,7 @@ object CharsetEncodingOptions {
     }
     
     fun getDefaultValue(): String {
-        return "PC857_CP857" // En güvenli evrensel encoding
+        return "AUTO" // Otomatik tespit - En iyi seçenek
     }
     
     /**
