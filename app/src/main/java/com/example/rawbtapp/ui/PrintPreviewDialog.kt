@@ -151,13 +151,13 @@ private fun PreviewTab(content: String) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFFF5F5F5))
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .padding(16.dp)
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
@@ -186,13 +186,13 @@ private fun PreviewTab(content: String) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFFF5F5F5))
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .padding(16.dp)
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
@@ -206,7 +206,7 @@ private fun PreviewTab(content: String) {
                         text = content,
                         fontFamily = FontFamily.Monospace,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Black
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -266,7 +266,7 @@ private fun RawDataTab(content: String) {
                 Text(
                     text = "Ham Metin",
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -291,7 +291,7 @@ private fun RawDataTab(content: String) {
                 Text(
                     text = "Byte Array (İlk 200 byte)",
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(

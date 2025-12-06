@@ -213,7 +213,7 @@ fun PrinterSelectionScreen(
                         Text(
                             documentTitle,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                         )
                     }
                 },
@@ -229,14 +229,15 @@ fun PrinterSelectionScreen(
                     IconButton(onClick = { showAddDialog = true }) {
                         Icon(
                             Icons.Default.Add,
-                            contentDescription = "Yazıcı Ekle",
-                            tint = MaterialTheme.colorScheme.primary
+                            contentDescription = "Yazıcı Ekle"
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         },
@@ -742,6 +743,7 @@ fun AddPrinterDialogInSelection(
         },
         text = {
             Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 OutlinedTextField(
@@ -814,7 +816,13 @@ fun AddPrinterDialogInSelection(
                     }
                     Switch(
                         checked = cutPaper,
-                        onCheckedChange = { cutPaper = it }
+                        onCheckedChange = { cutPaper = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
                     )
                 }
 
@@ -833,7 +841,12 @@ fun AddPrinterDialogInSelection(
                             onValueChange = { cutFeedLines = it.toInt() },
                             valueRange = 0f..10f,
                             steps = 9,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -858,10 +871,11 @@ fun AddPrinterDialogInSelection(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Karakter Seti / Encoding",
+                        text = "Karakter Seti",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     ExposedDropdownMenuBox(
                         expanded = expandedCharsetDropdown,
                         onExpandedChange = { expandedCharsetDropdown = !expandedCharsetDropdown }
@@ -914,21 +928,27 @@ fun AddPrinterDialogInSelection(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Türkçe Karakter İptal Et",
+                            text = "Türkçe Karakter İptal",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "İ→I, ı→i, Ö→O, ö→o, Ü→U, ü→u, Ş→S, ş→s, Ğ→G, ğ→g",
+                            text = "ÇĞİÖŞÜ → CGIOSU",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Switch(
                         checked = cancelTurkishChars,
-                        onCheckedChange = { cancelTurkishChars = it }
+                        onCheckedChange = { cancelTurkishChars = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
                     )
                 }
             }
@@ -1069,7 +1089,13 @@ fun EditPrinterDialogInSelection(
                     }
                     Switch(
                         checked = cutPaper,
-                        onCheckedChange = { cutPaper = it }
+                        onCheckedChange = { cutPaper = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
                     )
                 }
 
@@ -1088,7 +1114,12 @@ fun EditPrinterDialogInSelection(
                             onValueChange = { cutFeedLines = it.toInt() },
                             valueRange = 0f..10f,
                             steps = 9,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1113,10 +1144,11 @@ fun EditPrinterDialogInSelection(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Karakter Seti / Encoding",
+                        text = "Karakter Seti",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     ExposedDropdownMenuBox(
                         expanded = expandedCharsetDropdown,
                         onExpandedChange = { expandedCharsetDropdown = !expandedCharsetDropdown }

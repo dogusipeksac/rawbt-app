@@ -2080,19 +2080,25 @@ fun WebViewScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(title) },
+                title = { 
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge
+                    ) 
+                },
                 actions = {
                     IconButton(onClick = onSettingsClick) {
                         Icon(
                             imageVector = Icons.Filled.Settings,
                             contentDescription = "Settings",
-                            tint = androidx.compose.ui.graphics.Color.White
+                            tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         }
