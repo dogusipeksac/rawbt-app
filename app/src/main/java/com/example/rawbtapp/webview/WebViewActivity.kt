@@ -327,92 +327,240 @@ class WebViewActivity : ComponentActivity() {
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
+                    Log.d(TAG, "Page finished loading: $url")
 
-                    // DOMContentLoaded event listener ekleyin
-                    val setupScript = """
+                    // Tablet için mobil mod zorla + CSS/Layout fix
+                    webView.evaluateJavascript("""
         (function() {
-            var css = `
-                .card-body, .row, .col-md-12, .card, .list-item, [class*="list-item"] {
+            console.log('=== WebView Tablet Fix Starting ===');
+            console.log('Window dimensions:', window.innerWidth, 'x', window.innerHeight);
+            console.log('Screen dimensions:', screen.width, 'x', screen.height);
+            console.log('Device pixel ratio:', window.devicePixelRatio);
+            
+            // Viewport meta tag ekle/güncelle
+            var viewport = document.querySelector('meta[name=viewport]');
+            if (!viewport) {
+                viewport = document.createElement('meta');
+                viewport.name = 'viewport';
+                document.head.appendChild(viewport);
+            }
+            viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
+            console.log('✓ Viewport updated');
+            
+            // Touch event desteğini zorla
+            if (!('ontouchstart' in window)) {
+                window.ontouchstart = function() {};
+            }
+            console.log('✓ Touch events enabled');
+            
+            // Mobil cihaz olduğumuzu belirt
+            window.isMobile = true;
+            window.isTablet = true;
+            
+            // Screen size override (tablet'i telefon gibi göster)
+            Object.defineProperty(window.screen, 'width', { 
+                get: function() { return 412; } 
+            });
+            Object.defineProperty(window.screen, 'height', { 
+                get: function() { return 915; } 
+            });
+            console.log('✓ Screen size overridden to mobile');
+            
+            // BOOTSTRAP FIX: Grid layout'u düzelt
+            // col-md-12 d-flex flex-row'u grid yapan CSS
+            var style = document.createElement('style');
+            style.id = 'webview-tablet-fix';
+            style.innerHTML = `
+                /* GRID LAYOUT FIX */
+                
+                /* Ana wrapper'ı grid yapan CSS */
+                .col-md-12.d-flex.flex-row,
+                .col-md-12.d-flex.flex-row.flex-wrap {
+                    display: grid !important;
+                    grid-template-columns: repeat(5, 1fr) !important;
+                    gap: 12px !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    padding: 12px !important;
+                }
+                
+                /* Card'ları grid item yapan CSS */
+                .col-md-12.d-flex.flex-row .card,
+                .col-md-12.d-flex.flex-row.flex-wrap .card {
+                    display: block !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    height: auto !important;
+                    margin: 0 !important;
+                }
+                
+                /* Tüm card'ları düzelt */
+                .card {
+                    display: block !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    margin-bottom: 0 !important;
+                    flex: none !important;
+                }
+                
+                /* List item'leri düzelt */
+                .list-item {
+                    display: block !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    margin-bottom: 0 !important;
+                }
+                
+                /* Ürün görülsün */
+                [class*="product"],
+                [class*="Product"],
+                [class*="item"],
+                [class*="Item"],
+                [class*="list"],
+                [class*="List"] {
+                    display: block !important;
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                    height: auto !important;
+                    overflow: visible !important;
+                }
+                
+                /* Hidden sınıflarını override et */
+                .hidden,
+                .d-none,
+                [hidden] {
+                    display: block !important;
                     visibility: visible !important;
                     opacity: 1 !important;
                 }
+                
+                /* Responsive grid */
+                @media screen and (max-width: 600px) {
+                    .col-md-12.d-flex.flex-row,
+                    .col-md-12.d-flex.flex-row.flex-wrap {
+                        grid-template-columns: repeat(2, 1fr) !important;
+                    }
+                }
+                
+                body {
+                    max-width: 100vw !important;
+                    overflow-x: hidden !important;
+                    width: 100% !important;
+                }
+                
+                html {
+                    max-width: 100vw !important;
+                    overflow-x: hidden !important;
+                    width: 100% !important;
+                }
             `;
-            var style = document.createElement('style');
-            style.type = 'text/css';
-            style.appendChild(document.createTextNode(css));
             document.head.appendChild(style);
-
-            function fixElement(elem) {
-                // Zaten islendiye atla (loop onlemeki icin)
-                if (elem.dataset.metricsFixed) return;
-                
-                var computedStyle = window.getComputedStyle(elem);
-                var isFlex = elem.classList.contains('d-flex') || 
-                             elem.classList.contains('row') || 
-                             elem.classList.contains('list-item') ||
-                             computedStyle.display === 'flex';
-                             
-                if (isFlex) {
-                    elem.style.setProperty('display', 'flex', 'important');
-                    elem.style.setProperty('flex-wrap', 'wrap', 'important');
-                } else {
-                    elem.style.setProperty('display', 'block', 'important');
-                }
-                
-                elem.style.setProperty('visibility', 'visible', 'important');
-                elem.style.setProperty('opacity', '1', 'important');
-                
-                // Isaretle
-                elem.dataset.metricsFixed = 'true';
-            }
-
-            function processNode(node) {
-                if (node.nodeType === 1) { // ELEMENT_NODE
-                    // Hedef element mi?
-                    if (node.matches && (node.matches('.card-body') || 
-                        node.matches('.row') || 
-                        node.matches('.col-md-12') || 
-                        node.matches('.card') || 
-                        node.matches('.list-item') || 
-                        node.matches('[class*="list-item"]'))) {
-                        fixElement(node);
-                    }
-                    
-                    // Alt elementleri de kontrol et
-                    var children = node.querySelectorAll('.card-body, .row, .col-md-12, .card, .list-item, [class*="list-item"]');
-                    children.forEach(fixElement);
-                }
-            }
-
-            // 1. Mevcut elementleri duzelt
-            var existingElements = document.querySelectorAll('.card-body, .row, .col-md-12, .card, .list-item, [class*="list-item"]');
-            existingElements.forEach(fixElement);
-
-            // 2. Yeni eklenenleri izle (Dynamic Content / SPA)
-            var observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    mutation.addedNodes.forEach(processNode);
-                    
-                    // Attribute degisikliklerini de izle (or: class degisimi)
-                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                        processNode(mutation.target);
-                    }
-                });
-            });
-
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['class', 'style']
-            });
+            console.log('✓ CSS media query override injected');
             
-            console.log('=== Visibility Fix (MutationObserver) Applied ===');
-        })();
-    """.trimIndent()
-
-                    webView.evaluateJavascript(setupScript, null)
+            // INLINE STYLE OVERRIDE - CSS'in çalışmadığı durumlarda
+            setTimeout(function() {
+                console.log('--- Inline style override starting ---');
+                
+                // Ana wrapper'ı bul ve grid yapan CSS uygula
+                var mainWrapper = document.querySelector('.col-md-12.d-flex.flex-row');
+                if (mainWrapper) {
+                    console.log('Found main wrapper, applying grid styles');
+                    mainWrapper.style.display = 'grid';
+                    mainWrapper.style.gridTemplateColumns = 'repeat(5, 1fr)';
+                    mainWrapper.style.gap = '12px';
+                    mainWrapper.style.width = '100%';
+                    mainWrapper.style.maxWidth = '100%';
+                    mainWrapper.style.padding = '12px';
                 }
+                
+                // Tüm card'ları grid item yapan CSS uygula
+                var cards = document.querySelectorAll('.card');
+                cards.forEach(function(el) {
+                    el.style.display = 'block';
+                    el.style.width = '100%';
+                    el.style.maxWidth = '100%';
+                    el.style.height = 'auto';
+                    el.style.margin = '0';
+                    el.style.flex = 'none';
+                });
+                
+                // Tüm list-item'leri düzelt
+                var listItems = document.querySelectorAll('.list-item');
+                listItems.forEach(function(el) {
+                    el.style.display = 'block';
+                    el.style.width = '100%';
+                    el.style.maxWidth = '100%';
+                    el.style.margin = '0';
+                });
+                
+                console.log('✓ Inline styles applied (grid layout)');
+            }, 300);
+            
+            // JavaScript conditional rendering fix
+            // matchMedia'yı override et (tablet'i mobil gibi göster)
+            var originalMatchMedia = window.matchMedia;
+            window.matchMedia = function(query) {
+                console.log('matchMedia called with:', query);
+                
+                // Tablet breakpoint'lerini mobil olarak döndür
+                if (query.includes('min-width') && 
+                    (query.includes('768px') || query.includes('600px') || 
+                     query.includes('1024px') || query.includes('900px'))) {
+                    console.log('→ Overriding to mobile (false)');
+                    return { matches: false, media: query };
+                }
+                
+                // Mobil breakpoint'leri true döndür
+                if (query.includes('max-width') && 
+                    (query.includes('767px') || query.includes('599px'))) {
+                    console.log('→ Overriding to mobile (true)');
+                    return { matches: true, media: query };
+                }
+                
+                return originalMatchMedia.call(window, query);
+            };
+            console.log('✓ matchMedia overridden');
+            
+            // DOM'da gizli ürünleri bul ve göster
+            setTimeout(function() {
+                console.log('--- Searching for hidden products ---');
+                
+                // Yaygın ürün selector'ları
+                var selectors = [
+                    '[class*="product"]',
+                    '[class*="Product"]',
+                    '[class*="item"]',
+                    '[class*="Item"]',
+                    '[class*="card"]',
+                    '[class*="Card"]',
+                    '[data-product]',
+                    '[data-item]'
+                ];
+                
+                selectors.forEach(function(selector) {
+                    var elements = document.querySelectorAll(selector);
+                    console.log('Found', elements.length, 'elements for:', selector);
+                    
+                    elements.forEach(function(el) {
+                        var computed = window.getComputedStyle(el);
+                        if (computed.display === 'none' || 
+                            computed.visibility === 'hidden' ||
+                            computed.opacity === '0') {
+                            console.log('→ Showing hidden element:', el.className);
+                            el.style.display = 'block';
+                            el.style.visibility = 'visible';
+                            el.style.opacity = '1';
+                        }
+                    });
+                });
+                
+                console.log('✓ Hidden products revealed');
+            }, 500);
+            
+            console.log('=== WebView Tablet Fix Complete ===');
+        })();
+    """.trimIndent(), null)}
+
 
             }
         }
