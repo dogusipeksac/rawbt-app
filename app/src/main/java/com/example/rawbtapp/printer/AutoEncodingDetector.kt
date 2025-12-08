@@ -29,13 +29,17 @@ object AutoEncodingDetector {
         Log.d(TAG, "========================================")
         
         // Öncelikli encoding listesi - en yaygın çalışanlar
+        // NOT: Yazıcıdan geri bildirim alamadığımız için, en güvenilir encoding'leri önce deniyoruz
+        // Kullanıcı manuel olarak da seçebilir veya "Full Test" ile tüm encoding'leri deneyebilir
         val priorityEncodings = listOf(
-            "PC857_CP857",      // En yaygın - Standart Turkish
-            "NONE_CP857",       // Karakter seti komutu olmadan
-            "PC3846_CP3846",    // Alternatif güvenli
-            "PC857_61_CP857",   // Model 1 için
-            "PC857_ISO88599",   // ISO-8859-9
-            "PC857_Windows1254" // Windows-1254
+            "NONE_CP857",       // En güvenilir - Karakter seti komutu olmadan, sadece CP857 encoding
+            "PC857_CP857",      // Standart Turkish - ESC t 13 + CP857
+            "PC857_Windows1254",// Windows-1254 encoding ile
+            "PC857_ISO88599",   // ISO-8859-9 encoding ile
+            "PC857_61_CP857",   // Alternatif PC857 komutu (ESC t 61) - Bazı yazıcılar için
+            "NONE_Windows1254", // Karakter seti komutu olmadan Windows-1254
+            "PC850_Windows1254",// PC850 karakter seti + Windows-1254
+            "NONE_ISO88599"     // Karakter seti komutu olmadan ISO-8859-9
         )
         
         // Her encoding'i test et
@@ -53,10 +57,10 @@ object AutoEncodingDetector {
             }
         }
         
-        // Hiçbiri çalışmazsa varsayılan
-        Log.w(TAG, "No encoding worked, using default: PC857_CP857")
+        // Hiçbiri çalışmazsa en güvenilir varsayılanı kullan
+        Log.w(TAG, "No encoding worked, using safest default: NONE_CP857")
         Log.d(TAG, "========================================")
-        return@withContext "PC857_CP857"
+        return@withContext "NONE_CP857"
     }
     
     /**

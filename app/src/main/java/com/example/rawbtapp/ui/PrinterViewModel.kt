@@ -69,13 +69,28 @@ class PrinterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, message = null) }
 
-            Log.d(TAG, "Calling repository.printTest()...")
+            // Otomatik encoding tespiti (AUTO seçiliyse)
+            var charsetEncoding = selectedPrinter.charsetEncoding
+            if (charsetEncoding == "AUTO") {
+                try {
+                    Log.d(TAG, "charsetEncoding=AUTO, running autoDetectAndUpdateEncoding() for printTest...")
+                    charsetEncoding = printerManager.autoDetectAndUpdateEncoding(selectedPrinter.id)
+                    // Güncellenen yazıcıyı UI state'e yansıt
+                    printerManager.getPrinterById(selectedPrinter.id)?.let { updated ->
+                        _uiState.update { it.copy(selectedPrinter = updated) }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Auto encoding detection failed in printTest: ${e.message}")
+                }
+            }
+
+            Log.d(TAG, "Calling repository.printTest() with encoding: $charsetEncoding ...")
             val result = repository.printTest(
                 ipAddress = selectedPrinter.ipAddress,
                 port = selectedPrinter.port,
                 cutPaper = selectedPrinter.cutPaper,
                 cutFeedLines = selectedPrinter.cutFeedLines,
-                charsetEncoding = selectedPrinter.charsetEncoding,
+                charsetEncoding = charsetEncoding,
                 cancelTurkishChars = selectedPrinter.cancelTurkishChars
             )
 
@@ -168,12 +183,26 @@ class PrinterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, message = null) }
             
-            Log.d(TAG, "Calling repository.printCustomText()...")
+            // Otomatik encoding tespiti (AUTO seçiliyse)
+            var charsetEncoding = selectedPrinter.charsetEncoding
+            if (charsetEncoding == "AUTO") {
+                try {
+                    Log.d(TAG, "charsetEncoding=AUTO, running autoDetectAndUpdateEncoding() for printCustomText...")
+                    charsetEncoding = printerManager.autoDetectAndUpdateEncoding(selectedPrinter.id)
+                    printerManager.getPrinterById(selectedPrinter.id)?.let { updated ->
+                        _uiState.update { it.copy(selectedPrinter = updated) }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Auto encoding detection failed in printCustomText: ${e.message}")
+                }
+            }
+
+            Log.d(TAG, "Calling repository.printCustomText() with encoding: $charsetEncoding ...")
             val result = repository.printCustomText(
                 ipAddress = selectedPrinter.ipAddress,
                 port = selectedPrinter.port,
                 text = testText,
-                charsetEncoding = selectedPrinter.charsetEncoding,
+                charsetEncoding = charsetEncoding,
                 cancelTurkishChars = selectedPrinter.cancelTurkishChars
             )
             
@@ -206,13 +235,27 @@ class PrinterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, message = null) }
             
-            Log.d(TAG, "Calling repository.printSampleReceipt()...")
+            // Otomatik encoding tespiti (AUTO seçiliyse)
+            var charsetEncoding = selectedPrinter.charsetEncoding
+            if (charsetEncoding == "AUTO") {
+                try {
+                    Log.d(TAG, "charsetEncoding=AUTO, running autoDetectAndUpdateEncoding() for printSampleReceipt...")
+                    charsetEncoding = printerManager.autoDetectAndUpdateEncoding(selectedPrinter.id)
+                    printerManager.getPrinterById(selectedPrinter.id)?.let { updated ->
+                        _uiState.update { it.copy(selectedPrinter = updated) }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Auto encoding detection failed in printSampleReceipt: ${e.message}")
+                }
+            }
+
+            Log.d(TAG, "Calling repository.printSampleReceipt() with encoding: $charsetEncoding ...")
             val result = repository.printSampleReceipt(
                 ipAddress = selectedPrinter.ipAddress,
                 port = selectedPrinter.port,
                 cutPaper = selectedPrinter.cutPaper,
                 cutFeedLines = selectedPrinter.cutFeedLines,
-                charsetEncoding = selectedPrinter.charsetEncoding,
+                charsetEncoding = charsetEncoding,
                 cancelTurkishChars = selectedPrinter.cancelTurkishChars
             )
             
@@ -245,11 +288,25 @@ class PrinterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, message = null) }
             
-            Log.d(TAG, "Calling repository.printDemo()...")
+            // Otomatik encoding tespiti (AUTO seçiliyse)
+            var charsetEncoding = selectedPrinter.charsetEncoding
+            if (charsetEncoding == "AUTO") {
+                try {
+                    Log.d(TAG, "charsetEncoding=AUTO, running autoDetectAndUpdateEncoding() for printDemo...")
+                    charsetEncoding = printerManager.autoDetectAndUpdateEncoding(selectedPrinter.id)
+                    printerManager.getPrinterById(selectedPrinter.id)?.let { updated ->
+                        _uiState.update { it.copy(selectedPrinter = updated) }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Auto encoding detection failed in printDemo: ${e.message}")
+                }
+            }
+
+            Log.d(TAG, "Calling repository.printDemo() with encoding: $charsetEncoding ...")
             val result = repository.printDemo(
                 ipAddress = selectedPrinter.ipAddress,
                 port = selectedPrinter.port,
-                charsetEncoding = selectedPrinter.charsetEncoding,
+                charsetEncoding = charsetEncoding,
                 cancelTurkishChars = selectedPrinter.cancelTurkishChars
             )
             
@@ -505,7 +562,21 @@ class PrinterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, message = null) }
             
-            Log.d(TAG, "Calling repository.printReceiptWithRetry()...")
+            // Otomatik encoding tespiti (AUTO seçiliyse)
+            var charsetEncoding = selectedPrinter.charsetEncoding
+            if (charsetEncoding == "AUTO") {
+                try {
+                    Log.d(TAG, "charsetEncoding=AUTO, running autoDetectAndUpdateEncoding() for printReceiptFromDeepLink...")
+                    charsetEncoding = printerManager.autoDetectAndUpdateEncoding(selectedPrinter.id)
+                    printerManager.getPrinterById(selectedPrinter.id)?.let { updated ->
+                        _uiState.update { it.copy(selectedPrinter = updated) }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Auto encoding detection failed in printReceiptFromDeepLink: ${e.message}")
+                }
+            }
+
+            Log.d(TAG, "Calling repository.printReceiptWithRetry() with encoding: $charsetEncoding ...")
             val result = repository.printReceiptWithRetry(
                 ipAddress = selectedPrinter.ipAddress,
                 port = selectedPrinter.port,
@@ -514,7 +585,7 @@ class PrinterViewModel(application: Application) : AndroidViewModel(application)
                 delayMillis = 1000,
                 cutPaper = selectedPrinter.cutPaper,
                 cutFeedLines = selectedPrinter.cutFeedLines,
-                charsetEncoding = selectedPrinter.charsetEncoding,
+                charsetEncoding = charsetEncoding,
                 cancelTurkishChars = selectedPrinter.cancelTurkishChars
             )
             

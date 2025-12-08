@@ -98,39 +98,56 @@ class PrinterSelectionActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 val repository = com.example.rawbtapp.printer.PrinterRepository()
+
+                // Otomatik encoding tespiti (AUTO seçiliyse)
+                val printerManager = PrinterManager(this@PrinterSelectionActivity)
+                var effectivePrinter = printer
+                var charsetEncoding = printer.charsetEncoding
+                if (charsetEncoding == "AUTO") {
+                    try {
+                        android.util.Log.d(TAG, "charsetEncoding=AUTO, running autoDetectAndUpdateEncoding() in testPrinter...")
+                        charsetEncoding = printerManager.autoDetectAndUpdateEncoding(printer.id)
+                        printerManager.getPrinterById(printer.id)?.let { updated ->
+                            effectivePrinter = updated
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e(TAG, "Auto encoding detection failed in testPrinter: ${e.message}")
+                    }
+                }
+
                 val result = when (testType) {
                     "simple" -> {
                         repository.printCustomTest(
-                            ipAddress = printer.ipAddress,
-                            port = printer.port,
+                            ipAddress = effectivePrinter.ipAddress,
+                            port = effectivePrinter.port,
                             customText = customText.ifBlank { "TEST YAZDIR\nYazıcı Bağlantı Testi" },
-                            cutPaper = printer.cutPaper,
-                            cutFeedLines = printer.cutFeedLines,
-                            charsetEncoding = printer.charsetEncoding
+                            cutPaper = effectivePrinter.cutPaper,
+                            cutFeedLines = effectivePrinter.cutFeedLines,
+                            charsetEncoding = charsetEncoding
                         )
                     }
                     "full" -> {
                         repository.printFullTest(
-                            ipAddress = printer.ipAddress,
-                            port = printer.port,
+                            ipAddress = effectivePrinter.ipAddress,
+                            port = effectivePrinter.port,
                             customText = customText.ifBlank { "TEST YAZDIR\nYazıcı Bağlantı Testi" },
-                            cutPaper = printer.cutPaper,
-                            cutFeedLines = printer.cutFeedLines
+                            cutPaper = effectivePrinter.cutPaper,
+                            cutFeedLines = effectivePrinter.cutFeedLines
                         )
                     }
                     "detailed" -> {
                         repository.printDetailedTest(
-                            printer = printer,
+                            printer = effectivePrinter,
                             customText = customText.ifBlank { "TEST YAZDIR\nYazıcı Bağlantı Testi" }
                         )
                     }
                     else -> {
                         repository.printTest(
-                            ipAddress = printer.ipAddress,
-                            port = printer.port,
-                            cutPaper = printer.cutPaper,
-                            cutFeedLines = printer.cutFeedLines,
-                            charsetEncoding = printer.charsetEncoding
+                            ipAddress = effectivePrinter.ipAddress,
+                            port = effectivePrinter.port,
+                            cutPaper = effectivePrinter.cutPaper,
+                            cutFeedLines = effectivePrinter.cutFeedLines,
+                            charsetEncoding = charsetEncoding
                         )
                     }
                 }
@@ -1012,7 +1029,7 @@ fun EditPrinterDialogInSelection(
     var port by remember { mutableStateOf(printer.port.toString()) }
     var cutPaper by remember { mutableStateOf(printer.cutPaper) }
     var cutFeedLines by remember { mutableStateOf(printer.cutFeedLines) }
-    var charsetEncoding by remember { mutableStateOf(com.example.rawbtapp.printer.CharsetEncodingOptions.getDefaultValue()) }
+    var charsetEncoding by remember { mutableStateOf(printer.charsetEncoding) }
     var expandedCharsetDropdown by remember { mutableStateOf(false) }
     var cancelTurkishChars by remember { mutableStateOf(printer.cancelTurkishChars) }
 
